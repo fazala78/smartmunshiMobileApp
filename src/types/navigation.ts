@@ -22,4 +22,5 @@ export type RootStackParamList = {
   BankTransaction: undefined;
   AddContact: undefined;
   AddProduct: undefined;
+  ChequeList: undefined;
 };

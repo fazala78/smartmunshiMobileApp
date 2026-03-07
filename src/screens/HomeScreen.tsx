@@ -57,7 +57,7 @@ const quickActions: QuickAction[] = [
   { id: 2, route: 'PayExpense', title: 'Expense', subtitle: 'Pay Expenses', icon: 'payment', color: colors.danger, backgroundColor: colors.dangerLight },
   { id: 3, route: 'ReceivePayment', title: 'Receive Pmt', subtitle: 'Sale Return', icon: 'account-balance-wallet', color: colors.primary, backgroundColor: colors.primaryLight },
   { id: 4, route: 'PayPayment', title: 'Paid Pmt', subtitle: 'Purchase Ret.', icon: 'send', color: colors.warning2, backgroundColor: '#FFEDD5' },
-  { id: 5, route: 'Billing', title: 'Cheques', subtitle: 'Management', icon: 'book', color: colors.info, backgroundColor: colors.infoLight },
+  { id: 5, route: 'ChequeList', title: 'Cheques', subtitle: 'Management', icon: 'book', color: colors.info, backgroundColor: colors.infoLight },
   { id: 6, route: 'BankTransaction', title: 'Bank', subtitle: 'Reconcile', icon: 'account-balance', color: '#8B5CF6', backgroundColor: '#EDE9FE' },
   { id: 7, route: 'AddContact',title: 'Add Contact', subtitle: 'CRM', icon: 'person-add', color: '#8B5CF6', backgroundColor: '#EDE9FE' },
   { id: 8, route: 'AddProduct',title: 'Add Product', subtitle: 'Inventory', icon: 'inventory', color: '#0D9488', backgroundColor: '#CCFBF1' },

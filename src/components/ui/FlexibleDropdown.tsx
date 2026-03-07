@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import api from '../../services/api';
 import { colors } from '../../theme';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+
 export interface DropdownItem {
   label: string;
   value: string;
@@ -146,14 +148,14 @@ const FlexibleDropdown: React.FC<FlexibleDropdownProps> = ({
   };
 
   // Handle value change
-const handleValueChange = (val: any) => {
-  console.log(val);
-  onValueChange(val); 
-};
+  const handleValueChange = (val: any) => {
+    console.log(val);
+    onValueChange(val);
+  };
 
 
   return (
-    <View style={[styles.container, { zIndex }]}>
+    <View style={[styles.wrapper, { zIndex }]}>
       {label && <Text style={styles.label}>{label}</Text>}
 
       <DropDownPicker
@@ -198,14 +200,20 @@ const handleValueChange = (val: any) => {
         searchTextInputProps={{
           autoFocus: true,   // 👈 focus search input on open
         }}
-       
-
         // Icons
         ArrowDownIconComponent={() => (
-          <Text style={styles.arrow}>▼</Text>
+          <Icon
+            name='keyboard-arrow-down'
+            size={22}
+            color={colors.gray400}
+          />
         )}
         ArrowUpIconComponent={() => (
-          <Text style={styles.arrow}>▲</Text>
+          <Icon
+            name='keyboard-arrow-up'
+            size={22}
+            color={colors.gray400}
+          />
         )}
         TickIconComponent={() => (
           <Text style={styles.tick}>✓</Text>
@@ -231,26 +239,19 @@ const handleValueChange = (val: any) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
-  label: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textPlaceholder,
-    letterSpacing: 1,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
+  label: { fontSize: 10, fontWeight: '800', color: colors.textPlaceholder, letterSpacing: 1.2, textTransform: 'uppercase' },
   dropdown: {
     backgroundColor: colors.backgroundLight,
-    borderColor: colors.textPlaceholder,
+    borderColor: colors.gray200,
     borderWidth: 1,
     borderRadius: 12,
     minHeight: 48,
   },
   dropdownContainer: {
     backgroundColor: colors.white,
-    borderColor: colors.textPlaceholder,
+    borderColor: colors.gray200,
     borderWidth: 1,
     borderRadius: 12,
     marginTop: 4,
@@ -260,17 +261,17 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   placeholder: {
-    color: colors.textPlaceholder,
-    fontSize: 16,
+    color: colors.gray400,
+    fontSize: 15,
   },
   searchInput: {
-    borderColor: colors.textPlaceholder,
+    borderColor: colors.gray200,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 16,
     color: '#111813',
-    height:45
+    height: 45
   },
   selectedItemContainer: {
     backgroundColor: 'rgba(19, 236, 91, 0.1)',
@@ -314,6 +315,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 20,
   },
+   wrapper: { gap: 6 },
 });
 
 export default FlexibleDropdown;

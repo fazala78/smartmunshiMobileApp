@@ -7,6 +7,8 @@ import {
   FetchTransactionsParams,
   TransactionPaginatedResponse,
   ContactTransactionTypes,
+  ContactForm,
+  ContactCategory,
 } from '../types/contact';
 /**
  * Fetch contacts with filters and pagination
@@ -105,23 +107,13 @@ export const fetchContacts = async (
  * @param contactData - Contact data to create
  * @returns Promise with created contact
  */
-export const createContact = async (contactData: Partial<Contact>) => {
+export const createContact = async (payload: ContactForm): Promise<any> => {
   try {
-    console.log('➕ Creating contact:', contactData);
-
-    const response = await api.post('/contacts', contactData);
-
-    return {
-      success: true,
-      contact: response.data.data || response.data,
-      message: response.data.message || 'Contact created successfully',
-    };
+    const response = await api.post('/contacts', payload);
+    return response.data;
   } catch (error: any) {
-    console.error('❌ Error creating contact:', error);
-    return {
-      success: false,
-      error: error.response?.data?.message || 'Failed to create contact',
-    };
+    console.log('error');
+    throw error;
   }
 };
 
@@ -385,9 +377,9 @@ export const fetchCities = async (): Promise<City[]> => {
  * @param filters - Filter parameters for contacts
  * @returns Promise with paginated contacts data
  */
-export const fetchCategories = async (): Promise<City[]> => {
+export const fetchCategories = async (): Promise<ContactCategory[]> => {
   try {
-    const response = await api.get('/categories', {});
+    const response = await api.get('/search-contact-categories', {});
     return response.data.data;
   } catch (error: any) {
     console.error('❌ Error fetching contacts:', error);

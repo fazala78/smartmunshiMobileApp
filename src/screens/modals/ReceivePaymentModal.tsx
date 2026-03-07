@@ -30,16 +30,17 @@ const METHODS: { key: PaymentMethod; label: string; icon: string }[] = [
 const INITIAL_PAYLOAD: PaymentPayload = {
     contact: undefined,
     amount: undefined,
-    method: 'cash',
+    type: 'cash',
     date: undefined,
     remarks: undefined,
     account: undefined,
-    transaction_id: undefined,
+    slip_number: undefined,
     cheque_number: undefined,
     cheque_date: undefined,
     bank: undefined,
     cheque: undefined,
     currency: null,
+    expense: undefined
 };
 
 const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
@@ -72,11 +73,11 @@ const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
             errs.push('Please select a customer.');
         if (!payload.amount || payload.amount <= 0)
             errs.push('Please enter a valid amount.');
-        if (payload.method === 'bank' && !payload.account)
+        if (payload.type === 'bank' && !payload.account)
             errs.push('Please select a bank account.');
-        if (payload.method === 'cheque' && !payload.cheque_number?.trim())
+        if (payload.type === 'cheque' && !payload.cheque_number?.trim())
             errs.push('Please enter a cheque number.');
-        if (payload.method === 'cheque_forward' && !payload.cheque)
+        if (payload.type === 'cheque_forward' && !payload.cheque)
             errs.push('Please select a cheque to forward.');
         return errs;
     };

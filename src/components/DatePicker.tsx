@@ -14,9 +14,7 @@ interface DatePickerProps {
     onDateChange: (date: string) => void;
 }
 
-const DatePicker: React.FC<DatePickerProps> = ({
-    onDateChange,
-}) => {
+const DatePicker: React.FC<DatePickerProps> = ({ onDateChange }) => {
     const getToday = () => {
         const date = new Date();
         const year = date.getFullYear();
@@ -28,11 +26,10 @@ const DatePicker: React.FC<DatePickerProps> = ({
     const [selectedDate, setSelectedDate] = useState(getToday());
     const [showCalendar, setShowCalendar] = useState(false);
 
-    // Get week dates based on selected date
     const getWeekDates = (dateString: string) => {
         const date = new Date(dateString);
         const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
         const monday = new Date(date.setDate(diff));
 
         const weekDates = [];
@@ -50,12 +47,10 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
     const weekDates = getWeekDates(selectedDate);
 
-    // Get month and year from selected date
     const selectedDateObj = new Date(selectedDate);
-    const monthYear = selectedDateObj.toLocaleDateString('en-US', {
-        month: 'long',
-        year: 'numeric',
-    }).toUpperCase();
+    const monthYear = selectedDateObj
+        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        .toUpperCase();
 
     const handleDateSelect = (date: any) => {
         const newDate = date.dateString;
@@ -71,9 +66,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
     const defaultCalendarTheme = {
         backgroundColor: colors.white,
-        calendarBackground:colors.white,
+        calendarBackground: colors.white,
         textSectionTitleColor: colors.textSecondary,
-        selectedDayBackgroundColor:colors.white,
+        selectedDayBackgroundColor: colors.white,
         selectedDayTextColor: colors.white,
         todayTextColor: colors.textPlaceholder,
         dayTextColor: colors.textPrimary,
@@ -91,9 +86,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
             <View style={styles.dateSection}>
                 <View style={styles.dateSectionHeader}>
                     <TouchableOpacity onPress={() => setShowCalendar(true)}>
-                        <Text style={styles.monthLabel}>
-                            {monthYear}
-                        </Text>
+                        <Text style={styles.monthLabel}>{monthYear}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -102,33 +95,24 @@ const DatePicker: React.FC<DatePickerProps> = ({
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.datesContainer}
                 >
-                    {weekDates.map((item) => (
-                        <TouchableOpacity
-                            key={item.fullDate}
-                            onPress={() => handleWeekDateSelect(item.fullDate)}
-                            style={styles.dateItem}
-                        >
-                            <Text
-                                style={[
-                                    styles.dayLabel,
-                                    item.fullDate === selectedDate && styles.dayLabelActive,
-                                ]}
+                    {weekDates.map((item) => {
+                        const active = item.fullDate === selectedDate;
+                        return (
+                            <TouchableOpacity
+                                key={item.fullDate}
+                                onPress={() => handleWeekDateSelect(item.fullDate)}
+                                style={[styles.dateItem, active && styles.dateItemActive]}
+                                activeOpacity={0.8}
                             >
-                                {item.day}
-                            </Text>
-                            {item.fullDate === selectedDate ? (
-                                <View style={styles.dateCircleActive}>
-                                    <Text style={styles.dateTextActive}>
-                                        {item.date}
-                                    </Text>
-                                </View>
-                            ) : (
-                                <Text style={styles.dateText}>
+                                <Text style={[styles.dayLabel, active && styles.dayLabelActive]}>
+                                    {item.day}
+                                </Text>
+                                <Text style={[styles.dateText, active && styles.dateTextActive]}>
                                     {item.date}
                                 </Text>
-                            )}
-                        </TouchableOpacity>
-                    ))}
+                            </TouchableOpacity>
+                        );
+                    })}
                 </ScrollView>
             </View>
 
@@ -166,15 +150,16 @@ const DatePicker: React.FC<DatePickerProps> = ({
 };
 
 const styles = StyleSheet.create({
+    // ── Date section ─────────────────────────────────────────────────────────
     dateSection: {
-        backgroundColor:colors.white,
+        backgroundColor: colors.white,
         paddingHorizontal: 10,
     },
     dateSectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 24,
+        marginBottom: 12,
     },
     monthLabel: {
         fontSize: 10,
@@ -182,45 +167,48 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
         letterSpacing: 1.5,
     },
+
+    // ── Day cards ─────────────────────────────────────────────────────────────
     datesContainer: {
-        gap: 30,
+        gap: 8,
+        paddingVertical: 4,
     },
     dateItem: {
+        width: 56,
+        height: 80,
+        borderRadius: 14,
+        backgroundColor: '#f0f4f2',
         alignItems: 'center',
-        gap: 16,
+        justifyContent: 'center',
+        gap: 4,
+    },
+    dateItemActive: {
+        backgroundColor: colors.primary,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
     },
     dayLabel: {
         fontSize: 10,
         fontWeight: '700',
-        color:colors.textMuted,
+        color: '#6b7280',
         letterSpacing: 0.5,
     },
     dayLabelActive: {
-        color: colors.primary
-    },
-    dateText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: colors.backgroundDark
-    },
-    dateCircleActive: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor:colors.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.6,
-        shadowRadius: 50,
-        elevation: 8,
-    },
-    dateTextActive: {
-        fontSize: 14,
-        fontWeight: '800',
         color: colors.white,
     },
+    dateText: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: colors.backgroundDark,
+    },
+    dateTextActive: {
+        color: colors.white,
+    },
+
+    // ── Calendar modal ────────────────────────────────────────────────────────
     modalOverlay: {
         flex: 1,
         backgroundColor: colors.backgroundDark,

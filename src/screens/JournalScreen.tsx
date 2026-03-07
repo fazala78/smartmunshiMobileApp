@@ -31,6 +31,8 @@ import { PAYMENT_TYPES, PaymentType } from '../constants/paymentTypes';
 import { queryParams, TransactionItem } from '../types/journal';
 import BankPaymentReceipt from './modals/BankPaymentReceipt';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Loading from '../components/common/Loading';
+import Empty from '../components/common/Empty';
 
 
 const JournalScreen = () => {
@@ -140,7 +142,7 @@ const JournalScreen = () => {
                 <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
                 {/* ── Fixed: only the title bar ── */}
-                <Header title="Journal" />
+                <Header title='Journal' navigation={null}></Header>
 
                 {/* ── Single ScrollView: header block + cards all scroll together ── */}
                 <ScrollView
@@ -158,6 +160,8 @@ const JournalScreen = () => {
                             filters={filters}
                             handleOpenFilters={handleOpenFilters}
                         />
+                         {/* 3. Calendar / DatePicker */}
+                        <DatePicker onDateChange={handleDateChange} />
 
                         {/* 2. Quick filter badges */}
                         <ScrollView
@@ -176,8 +180,7 @@ const JournalScreen = () => {
                             />
                         </ScrollView>
 
-                        {/* 3. Calendar / DatePicker */}
-                        <DatePicker onDateChange={handleDateChange} />
+                       
 
 
 
@@ -211,9 +214,7 @@ const JournalScreen = () => {
                         </View>
 
                         {isLoadingTransactions ? (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyStateText}>Loading transactions...</Text>
-                            </View>
+                           <Loading />
                         ) : Array.isArray(transactions) && transactions.length > 0 ? (
                             transactions.map((journal) => (
                                 <TouchableOpacity
@@ -304,9 +305,7 @@ const JournalScreen = () => {
                                 </TouchableOpacity>
                             ))
                         ) : (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyStateText}>No transactions found</Text>
-                            </View>
+                            <Empty title="No Transaction found" />
                         )}
                     </View>
                 </ScrollView>

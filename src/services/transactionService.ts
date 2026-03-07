@@ -1,3 +1,4 @@
+import { ContactForm } from '../types/contact';
 import { Inventory } from '../types/Inventory';
 import { PaymentPayload } from '../types/payments';
 import {

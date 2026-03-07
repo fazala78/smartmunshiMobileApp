@@ -46,12 +46,12 @@ export interface FilterState {
 }
 
 export interface FilterChip {
-  id: string;
+  key: string;
   label: string;
 }
 
 export interface ContactCategory {
-  id: string;
+  id?: number;
   label: string;
 }
 export interface City {
@@ -114,4 +114,27 @@ export interface Currency {
 export interface ContactTransactionTypes {
   label: string;
   value: string;
+}
+
+export interface ContactForm {
+  name: string;
+  opn_balance: number | null;
+  type: string;
+  balance_type: string;
+  phone: string;
+  email: string;
+  credit_limit: number | null;
+  asset_id: null;
+  city: ContactCity | null;
+  category: ContactCategory | null;
+  currency: null;
+}
+export interface ContactCategory {
+  id?: string;
+  number: string;
+}
+
+export interface ContactCity {
+  id?: string;
+  number: string;
 }

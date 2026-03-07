@@ -14,7 +14,7 @@ const FilterBtn: React.FC<FilterButtonProps> = ({ onPress }) => {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Icon name="tune" size={24} color={colors.textPrimary} />
+      <Icon name="tune" size={24} color={colors.white} />
     </TouchableOpacity>
   );
 };
@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
   filterButton: {
     width: 48,
     height: 48,
-    backgroundColor: colors.backgroundLight,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',

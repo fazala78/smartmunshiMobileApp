@@ -20,6 +20,7 @@ import ExpenseScreen from '../screens/ExpenseScreen';
 import BankPaymentScreen from '../screens/BankPaymentScreen';
 import AddContactScreen from '../screens/AddContactScreen';
 import AddProductScreen from '../screens/AddProductScreen';
+import ChequeListScreen from '../screens/ChequeListScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -183,6 +184,14 @@ const AppNavigator: React.FC = () => {
          <Stack.Screen
           name="AddProduct"
           component={AddProductScreen}
+          options={{ 
+            headerShown: false,
+            gestureEnabled: false 
+          }}
+        />
+         <Stack.Screen
+          name="ChequeList"
+          component={ChequeListScreen}
           options={{ 
             headerShown: false,
             gestureEnabled: false 

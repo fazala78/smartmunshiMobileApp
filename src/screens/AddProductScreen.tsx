@@ -11,6 +11,10 @@ import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
 import InputField from '../components/ui/InputField';
 import AsyncDropdown from '../components/AsyncDropdown';
+import { CategoriesType, ProductFormData, unitsType } from '../types/Product';
+import { createProduct } from '../services/ProductService';
+import SuccessModal, { SuccessResponse } from './modals/SuccessModal';
+import Header from '../components/ui/Header';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,28 +22,39 @@ type Props = {
     navigation: NativeStackNavigationProp<RootStackParamList, 'AddProduct'>;
 };
 
-const INITIAL = {
-    name:           '',
-    sku:            '',
-    purchase_price: '',
-    sale_price:     '',
-    category:       null as any,
-    tax:            null as any,
-    opening_stock:  '',
-    unit:           null as any,
+const INITIAL: ProductFormData = {
+    name: '',
+    opening_stock: null,
+    opening_bags: null,
+    price: null,
+    cost: null,
+    min_price: null,
+    sale_taxes: [],
+    purchase_taxes: [],
+    discount: null,
+    barcode: '',
+    qty_alert: null,
+    unit: null,
+    remarks: null,
+    asset_id: null,
+    categories: [],
+    discount_type: 'flat',
+    product_type: 'pre-tax-discount'
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AddProductScreen: React.FC<Props> = ({ navigation }) => {
 
-    const [form,    setForm]    = useState(INITIAL);
+    const [form, setForm] = useState<ProductFormData>(INITIAL);
     const [loading, setLoading] = useState(false);
-    const [toast,   setToast]   = useState<string | null>(null);
-    const [photo,   setPhoto]   = useState<string | null>(null);
+    const [toast, setToast] = useState<string | null>(null);
+    const [photo, setPhoto] = useState<string | null>(null);
+    const [success, setSuccess] = useState<SuccessResponse | null>(null);
+    const [showSuccess, setShowSuccess] = useState(false);
 
-    const toastAnim  = useRef(new Animated.Value(0)).current;
-    let   resetSwipe: (() => void) | null = null;
+    const toastAnim = useRef(new Animated.Value(0)).current;
+    let resetSwipe: (() => void) | null = null;
 
     // ── Helper ────────────────────────────────────────────────────────────────
     const update = (fields: Partial<typeof INITIAL>) =>
@@ -56,29 +71,47 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         ]).start(() => setToast(null));
     };
 
+    const handleAddAnother = () => {
+        setShowSuccess(false);
+        setForm(INITIAL);
+        setSuccess(null);
+    };
+
+    // "Done" — go back
+    const handleDone = () => {
+        setShowSuccess(false);
+        navigation.goBack();
+    };
+
     // ── Validation ─────────────────────────────────────────────────────────────
     const validate = (): string[] => {
         const errs: string[] = [];
-        if (!form.name.trim())         errs.push('Please enter a product name.');
-        if (!form.sale_price.trim())   errs.push('Please enter a sale price.');
+        if (!form.name.trim()) errs.push('Please enter a product name.');
+        if (!form.price) errs.push('Please enter a sale price.');
+        if (!form.cost) errs.push('Please enter a purchase price.');
+        if (!form.opening_stock) errs.push('Please enter a Opening stock.');
+        if (!form.unit) errs.push('Select the Product Unit.');
         return errs;
     };
 
     // ── Submit ─────────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
         if (loading) return;
-        const errs = validate();
-        if (errs.length > 0) {
-            showToast(errs[0]);
-            resetSwipe?.();
-            return;
-        }
+         const errs = validate();
+         if (errs.length > 0) {
+             showToast(errs[0]);
+             resetSwipe?.();
+             return;
+         } 
+
         try {
             setLoading(true);
-            // await createProduct(form);
-            navigation.goBack();
+            const response = await createProduct(form);
+            setSuccess(response);
+            setShowSuccess(true);
+            // navigation.goBack();
         } catch (error: any) {
-            resetSwipe?.();
+
             const apiErrors: string[] = [];
             if (error?.response?.data?.errors) {
                 Object.values(error.response.data.errors).forEach((msgs: any) => {
@@ -91,6 +124,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
             showToast(apiErrors[0]);
         } finally {
             setLoading(false);
+            resetSwipe?.();
         }
     };
 
@@ -102,18 +136,17 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     // ─── Render ────────────────────────────────────────────────────────────────
     return (
         <SafeAreaView style={styles.container}>
+            <SuccessModal
+                visible={showSuccess}
+                response={success}
+                onClose={handleAddAnother}
+                onDone={handleDone}
+                closeLabel="Add Another"
+                doneLabel="Done"
+            />
 
             {/* ── Header ── */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="arrow-back-ios" size={22} color={colors.gray900} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Add New Product</Text>
-                <TouchableOpacity onPress={handleSubmit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.saveBtn}>Save</Text>
-                </TouchableOpacity>
-            </View>
+            <Header title='New Product' navigation={navigation} />
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
@@ -163,11 +196,10 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                             bg="white"
                             label="SKU / Barcode"
                             type="text"
-                            value={form.sku}
-                            onChangeText={(v) => update({ sku: v })}
+                            value={form.barcode}
+                            onChangeText={(v) => update({ barcode: v })}
                             placeholder="Scan or enter SKU"
                             icon="barcode-reader"
-                            rightIcon="qr-code-scanner"
                         />
                     </View>
 
@@ -178,8 +210,8 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                 bg="white"
                                 label="Purchase Price"
                                 type="decimal"
-                                value={form.purchase_price}
-                                onChangeText={(v) => update({ purchase_price: v })}
+                                value={form.cost}
+                                onChangeText={(v) => update({ cost: parseFloat(v) || 0 })}
                                 placeholder="0.00"
                                 icon="attach-money"
                             />
@@ -189,8 +221,8 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                 bg="white"
                                 label="Sale Price"
                                 type="decimal"
-                                value={form.sale_price}
-                                onChangeText={(v) => update({ sale_price: v })}
+                                value={form.price}
+                                onChangeText={(v) => update({ price: parseFloat(v) || 0 })}
                                 placeholder="0.00"
                                 icon="sell"
                             />
@@ -202,28 +234,30 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                         <View style={styles.rowItem}>
                             <AsyncDropdown
                                 url="/categories"
-                                searchParam="q"
+                                searchParam="query"
                                 minSearchLength={2}
-                                creatable
+                                creatable={true}
                                 label="Category"
                                 leadingIconName="category"
                                 inputBg={colors.backgroundLight}
-                                onSelect={(v) => update({ category: v })}
-                            />
-                        </View>
-                        <View style={styles.rowItem}>
-                            <AsyncDropdown
-                                url="/taxes"
-                                searchParam="q"
-                                minSearchLength={1}
-                                creatable={false}
-                                label="Tax Type"
-                                leadingIconName="percent"
-                                inputBg={colors.backgroundLight}
-                                onSelect={(v) => update({ tax: v })}
+                                // Append to existing array instead of replacing
+                                onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })}
                             />
                         </View>
                     </View>
+                    {/* Remarks */}
+                    <InputField
+                        bg="white"
+                        textAlign="left"
+                        label="Remarks"
+                        type="text"
+                        value={form.remarks ?? ''}
+                        onChangeText={(v) => update({ remarks: v })}
+                        placeholder="Remarks"
+                        icon="description"
+                        multiline
+                        numberOfLines={3}
+                    />
 
                     {/* ── Inventory Initializer ── */}
                     <View style={styles.inventorySection}>
@@ -235,7 +269,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                     label="Opening Stock"
                                     type="number"
                                     value={form.opening_stock}
-                                    onChangeText={(v) => update({ opening_stock: v })}
+                                    onChangeText={(v) => update({ opening_stock: parseFloat(v) || 0 })}
                                     placeholder="0"
                                     icon="inventory"
                                 />
@@ -249,7 +283,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                     label="Unit"
                                     leadingIconName="straighten"
                                     inputBg={colors.backgroundLight}
-                                    onSelect={(v) => update({ unit: v })}
+                                    onSelect={(v) => update({ unit: v as unknown as unitsType })}
                                 />
                             </View>
                         </View>
@@ -260,22 +294,23 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
 
                 {/* ── Footer ── */}
                 <View style={styles.footer}>
-                    <SwipeButton
-                        title={loading ? 'Saving...' : 'Slide to Save Product'}
-                        thumbIconComponent={ThumbIcon}
-                        railBackgroundColor={colors.backgroundLight}
-                        railBorderColor={colors.gray200}
-                        railFillBackgroundColor={colors.primaryMuted}
-                        thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
-                        thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
-                        titleColor={colors.gray500}
-                        titleFontSize={13}
-                        height={64}
-                        swipeSuccessThreshold={70}
-                        disabled={loading}
-                        onSwipeSuccess={handleSubmit}
-                        forceReset={(reset: () => void) => { resetSwipe = reset; }}
-                    />
+                   
+                     <SwipeButton
+                                  title={loading ? 'Processing...' : 'Slide to Save Product'}
+                                  thumbIconComponent={ThumbIcon}
+                                  railBackgroundColor={colors.primaryLight}
+                                  railBorderColor={colors.primaryLight}
+                                  railFillBackgroundColor={colors.primary}
+                                  thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
+                                  thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
+                                  titleColor={colors.backgroundDark}
+                                  titleFontSize={15}
+                                  height={64}
+                                  swipeSuccessThreshold={70}
+                                  disabled={loading}
+                                  onSwipeSuccess={handleSubmit}
+                                  forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                                />
                 </View>
             </KeyboardAvoidingView>
 
@@ -287,35 +322,36 @@ export default AddProductScreen;
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container:    { flex: 1, backgroundColor: colors.white },
+    container: { flex: 1, backgroundColor: colors.white },
 
     // Header
-    header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray100 },
-    backBtn:      { width: 48, height: 48, justifyContent: 'center' },
-    headerTitle:  { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
-    saveBtn:      { fontSize: 16, fontWeight: '800', color: colors.primary, minWidth: 48, textAlign: 'right' },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray100 },
+    backBtn: { width: 48, height: 48, justifyContent: 'center' },
+     headerTitle:  { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
+      headerSpacer: { width: 70 },
+    saveBtn: { fontSize: 16, fontWeight: '800', color: colors.primary, minWidth: 48, textAlign: 'right' },
 
     // Body
-    body:         { flex: 1 },
-    bodyContent:  { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 16 },
+    body: { flex: 1 },
+    bodyContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 16 },
 
     // Toast
-    toast:        { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.danger, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, shadowColor: colors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-    toastText:    { flex: 1, fontSize: 13, fontWeight: '600', color: colors.white, lineHeight: 18 },
+    toast: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.danger, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, shadowColor: colors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+    toastText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.white, lineHeight: 18 },
 
     // Photo
     photoSection: { alignItems: 'center', paddingVertical: 24 },
-    photoBtn:     { width: 128, height: 128, borderRadius: 64, borderWidth: 2, borderColor: colors.primaryMuted, borderStyle: 'dashed', backgroundColor: colors.backgroundLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', gap: 6 },
-    photoImage:   { width: '100%', height: '100%' },
-    photoLabel:   { fontSize: 13, fontWeight: '800', color: colors.primary },
+    photoBtn: { width: 128, height: 128, borderRadius: 64, borderWidth: 2, borderColor: colors.primaryMuted, borderStyle: 'dashed', backgroundColor: colors.backgroundLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', gap: 6 },
+    photoImage: { width: '100%', height: '100%' },
+    photoLabel: { fontSize: 13, fontWeight: '800', color: colors.primary },
 
     // Section
-    section:          { gap: 12 },
+    section: { gap: 12 },
     inventorySection: { gap: 12, borderTopWidth: 1, borderTopColor: colors.gray100, paddingTop: 16 },
-    sectionTitle:     { fontSize: 15, fontWeight: '800', color: colors.gray900 },
+    sectionTitle: { fontSize: 12, fontWeight: '800', color: colors.primary, letterSpacing: 1.2, textTransform: 'uppercase', paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: colors.primaryMuted, alignSelf: 'flex-start' },
 
     // Side-by-side row
-    row:     { flexDirection: 'row', gap: 12 },
+    row: { flexDirection: 'row', gap: 12 },
     rowItem: { flex: 1 },
 
     // Footer

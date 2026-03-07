@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import api from '../../services/api';
 import { colors } from '../../theme';
-
+import Icon from 'react-native-vector-icons/MaterialIcons';
 export interface ApiDropdownItem {
   label: string;
   value: string;
@@ -17,8 +17,8 @@ interface ApiDropdownProps {
   searchParam?: string;           // default: search
   labelKey?: string;              // default: label
   valueKey?: string;              // default: value
-  dataKey?: string;       
-  modalKey?:string;        // default: data
+  dataKey?: string;
+  modalKey?: string;        // default: data
 
   value: string | string[] | null;
   onValueChange: (value: string | string[] | null) => void;
@@ -51,7 +51,7 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ApiDropdownItem[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Local state to control the dropdown
   const [internalValue, setInternalValue] = useState<string | string[] | null>(value);
 
@@ -66,9 +66,9 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
       const data = dataKey ? response.data[dataKey] : response.data;
       const mapped: ApiDropdownItem[] = data.map((item: any) => (
         {
-        label: item[labelKey],
-        value: String(item[valueKey]+'_'+item[modalKey]),
-      }));
+          label: item[labelKey],
+          value: String(item[valueKey] + '_' + item[modalKey]),
+        }));
 
       setItems(mapped);
     } catch (e) {
@@ -109,9 +109,8 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
   };
 
   return (
-    <View style={[styles.container, { zIndex }]}>
+    <View style={[styles.wrapper, { zIndex }]}>
       {label && <Text style={styles.label}>{label}</Text>}
-
       <DropDownPicker
         open={open}
         value={internalValue}
@@ -123,7 +122,7 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
 
         multiple={multiple}
         mode={multiple ? 'BADGE' : 'DEFAULT'}
-        
+
         searchable={searchable}
         onChangeSearchText={handleSearch}
         searchPlaceholder="Search..."
@@ -144,20 +143,29 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
         badgeStyle={styles.badge}
         badgeTextStyle={styles.badgeText}
         badgeDotStyle={styles.badgeDot}
-        
+
         listMode="SCROLLVIEW"
         dropDownDirection="BOTTOM"
-        
+
         searchTextInputProps={{
           autoFocus: true,
         }}
 
         // Icons
         ArrowDownIconComponent={() => (
-          <Text style={styles.arrow}>▼</Text>
+          <Icon
+            name='keyboard-arrow-down'
+            size={22}
+            color={colors.gray400}
+          />
+
         )}
         ArrowUpIconComponent={() => (
-          <Text style={styles.arrow}>▲</Text>
+          <Icon
+            name='keyboard-arrow-up'
+            size={22}
+            color={colors.gray400}
+          />
         )}
         TickIconComponent={() => (
           <Text style={styles.tick}>✓</Text>
@@ -166,7 +174,7 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
         ActivityIndicatorComponent={() => (
           <ActivityIndicator size="small" color={colors.primary} />
         )}
-        
+
         listMessageTextStyle={styles.listMessage}
 
         // Multiple mode specific
@@ -181,19 +189,13 @@ const ApiDropdown: React.FC<ApiDropdownProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
-  label: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textPlaceholder,
-    letterSpacing: 1,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
+  label: { fontSize: 10, fontWeight: '800', color: colors.textPlaceholder, letterSpacing: 1.2, textTransform: 'uppercase' },
+  
   dropdown: {
     backgroundColor: colors.backgroundLight,
-    borderColor: colors.textPlaceholder,
+    borderColor: colors.gray200,
     borderWidth: 1,
     borderRadius: 12,
     minHeight: 48,
@@ -210,8 +212,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   placeholder: {
-    color: colors.textPlaceholder,
-    fontSize: 16,
+    color: colors.gray400,
+    fontSize: 15,
+    fontWeight:500,
   },
   searchInput: {
     borderColor: colors.textPlaceholder,
@@ -264,6 +267,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 20,
   },
+    wrapper: { gap: 6 },
 });
 
 export default ApiDropdown;

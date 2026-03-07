@@ -11,47 +11,57 @@ import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
 import InputField from '../components/ui/InputField';
 import SelectionButton from '../components/ui/SelectionButton';
+import SuccessModal,{ SuccessResponse } from './modals/SuccessModal';
+import { ContactCategory, ContactCity, ContactForm } from '../types/contact';
+import AsyncDropdown from '../components/AsyncDropdown';
+import { createContact } from '../services/contactService';
+import useCurrency from '../utils/currency';
+import Header from '../components/ui/Header';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ContactType    = 'customer' | 'vendor';
-type BalanceType    = 'receivable' | 'payable';
+type ContactType = 'client' | 'vendor';
 
 type Props = {
     navigation: NativeStackNavigationProp<RootStackParamList, 'AddContact'>;
 };
 
 const CONTACT_TYPES: { key: ContactType; label: string; icon: string }[] = [
-    { key: 'customer', label: 'Customer', icon: 'person' },
-    { key: 'vendor',   label: 'Vendor',   icon: 'store' },
+    { key: 'client', label: 'Customer', icon: 'person' },
+    { key: 'vendor', label: 'Vendor',   icon: 'store' },
 ];
 
-const INITIAL = {
+const INITIAL: ContactForm = {
     name:         '',
-    type:         'customer' as ContactType,
-    category:     '',
+    opn_balance:  null,
+    type:         'client',
+    balance_type: 'receivable',
     phone:        '',
     email:        '',
-    balance_type: 'receivable' as BalanceType,
-    balance:      '',
-    city:         '',
-    address:      '',
+    credit_limit: null,
+    asset_id:     null,
+    city:         null,
+    category:     null,
+    currency:     null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AddContactScreen: React.FC<Props> = ({ navigation }) => {
 
-    const [form,    setForm]    = useState(INITIAL);
-    const [loading, setLoading] = useState(false);
-    const [toast,   setToast]   = useState<string | null>(null);
-    const [avatar,  setAvatar]  = useState<string | null>(null);
+    const [form,        setForm]        = useState<ContactForm>(INITIAL);
+    const [loading,     setLoading]     = useState(false);
+    const [toast,       setToast]       = useState<string | null>(null);
+    const [avatar,      setAvatar]      = useState<string | null>(null);
+    const [success,     setSuccess]     = useState<SuccessResponse | null>(null);
+    const [showSuccess, setShowSuccess] = useState(false);
 
-    const toastAnim  = useRef(new Animated.Value(0)).current;
+    const currency  = useCurrency();
+    const toastAnim = useRef(new Animated.Value(0)).current;
     let   resetSwipe: (() => void) | null = null;
 
     // ── Helper ────────────────────────────────────────────────────────────────
-    const update = (fields: Partial<typeof INITIAL>) =>
+    const update = (fields: Partial<ContactForm>) =>
         setForm((prev) => ({ ...prev, ...fields }));
 
     // ── Toast ──────────────────────────────────────────────────────────────────
@@ -69,8 +79,21 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
     const validate = (): string[] => {
         const errs: string[] = [];
         if (!form.name.trim())  errs.push('Please enter a name.');
-        if (!form.phone.trim()) errs.push('Please enter a phone number.');
         return errs;
+    };
+
+    // ── Success handlers ──────────────────────────────────────────────────────
+    // "Add Another" — reset form, stay on screen
+    const handleAddAnother = () => {
+        setShowSuccess(false);
+        setForm(INITIAL);
+        setSuccess(null);
+    };
+
+    // "Done" — go back
+    const handleDone = () => {
+        setShowSuccess(false);
+        navigation.goBack();
     };
 
     // ── Submit ─────────────────────────────────────────────────────────────────
@@ -84,10 +107,10 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
         }
         try {
             setLoading(true);
-            // await createContact(form);
-            navigation.goBack();
+            const response = await createContact({ ...form, currency });
+            setSuccess(response);
+            setShowSuccess(true);
         } catch (error: any) {
-            resetSwipe?.();
             const apiErrors: string[] = [];
             if (error?.response?.data?.errors) {
                 Object.values(error.response.data.errors).forEach((msgs: any) => {
@@ -100,6 +123,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
             showToast(apiErrors[0]);
         } finally {
             setLoading(false);
+            resetSwipe?.();
         }
     };
 
@@ -112,16 +136,17 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
     return (
         <SafeAreaView style={styles.container}>
 
-            {/* ── Header ── */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="chevron-left" size={24} color={colors.info} />
-                    <Text style={styles.backLabel}>Contacts</Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>New Contact</Text>
-                <View style={styles.headerSpacer} />
-            </View>
+            <SuccessModal
+                visible={showSuccess}
+                response={success}
+                onClose={handleAddAnother}
+                onDone={handleDone}
+                closeLabel="Add Another"
+                doneLabel="Done"
+            />
+
+             {/* ── Header ── */}
+            <Header title='New Contact' navigation={navigation} />
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
@@ -160,57 +185,46 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                     {/* ── Identity ── */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Identity</Text>
-
                         <InputField
-                            bg="white"
-                            label="Full Name"
-                            type="text"
+                            bg="white" label="Full Name" type="text"
                             value={form.name}
                             onChangeText={(v) => update({ name: v })}
-                            placeholder="Enter name"
-                            icon="badge"
+                            placeholder="Enter name" icon="badge"
                         />
-
                         <SelectionButton
                             label="Contact Type"
                             options={CONTACT_TYPES}
                             value={form.type}
                             onSelect={(key) => update({ type: key as ContactType })}
                         />
-
-                        <InputField
-                            bg="white"
-                            label="Category"
-                            type="text"
-                            value={form.category}
-                            onChangeText={(v) => update({ category: v })}
-                            placeholder="e.g. Regular, VIP, Wholesale"
-                            icon="label"
+                        <AsyncDropdown
+                            url="/search-contact-categories"
+                            searchParam="q"
+                            minSearchLength={2}
+                            creatable
+                            leadingIconName='local-offer'
+                            label="Select Category"
+                            placeholder="Search Category"
+                            createLabel="Create Category"
+                            inputBg={colors.backgroundLight}
+                            onSelect={(v) => update({ category: v as unknown as ContactCategory })}
                         />
                     </View>
 
                     {/* ── Connectivity ── */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Connectivity</Text>
-
                         <InputField
-                            bg="white"
-                            label="Phone Number"
-                            type="phone"
+                            bg="white" label="Phone Number" type="phone"
                             value={form.phone}
                             onChangeText={(v) => update({ phone: v })}
-                            placeholder="+1 (000) 000-0000"
-                            icon="phone-iphone"
+                            placeholder="+1 (000) 000-0000" icon="phone-iphone"
                         />
-
                         <InputField
-                            bg="white"
-                            label="Email Address"
-                            type="email"
+                            bg="white" label="Email Address" type="email"
                             value={form.email}
                             onChangeText={(v) => update({ email: v })}
-                            placeholder="email@domain.com"
-                            icon="mail"
+                            placeholder="email@domain.com" icon="mail"
                         />
                     </View>
 
@@ -218,7 +232,6 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Initial Balance</Text>
 
-                        {/* DR / CR toggle */}
                         <View style={styles.balanceToggleRow}>
                             <TouchableOpacity
                                 style={[styles.balanceToggleBtn, form.balance_type === 'receivable' && styles.balanceToggleBtnActiveDr]}
@@ -248,40 +261,33 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
 
                         <InputField
-                            bg="white"
-                            label="Opening Balance"
-                            type="decimal"
-                            value={form.balance}
-                            onChangeText={(v) => update({ balance: v })}
-                            placeholder="0.00"
-                            icon="account-balance-wallet"
+                            bg="white" label="Opening Balance" type="decimal"
+                            value={form.opn_balance?.toString() ?? ''}
+                            onChangeText={(v) => update({ opn_balance: parseFloat(v) || 0 })}
+                            placeholder="0.00" icon="account-balance-wallet"
+                        />
+                        <InputField
+                            bg="white" label="Credit Limit" type="decimal"
+                            value={form.credit_limit?.toString() ?? ''}
+                            onChangeText={(v) => update({ credit_limit: parseFloat(v) || null })}
+                            placeholder="0.00" icon="credit-card"
                         />
                     </View>
 
                     {/* ── Location ── */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Location</Text>
-
-                        <InputField
-                            bg="white"
-                            label="City"
-                            type="text"
-                            value={form.city}
-                            onChangeText={(v) => update({ city: v })}
-                            placeholder="Search city..."
-                            icon="location-on"
-                        />
-
-                        <InputField
-                            bg="white"
-                            label="Full Address"
-                            type="text"
-                            value={form.address}
-                            onChangeText={(v) => update({ address: v })}
-                            placeholder="Street name, floor, etc..."
-                            icon="map"
-                            multiline
-                            numberOfLines={3}
+                        <AsyncDropdown
+                            url="/search-cities"
+                            searchParam="q"
+                            minSearchLength={2}
+                            creatable
+                            leadingIconName='location-city'
+                            label="Select City"
+                             placeholder="Search City"
+                            createLabel="Create City"
+                            inputBg={colors.backgroundLight}
+                            onSelect={(v) => update({ city: v as unknown as ContactCity })}
                         />
                     </View>
 
@@ -294,11 +300,11 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                         title={loading ? 'Saving...' : 'Slide to Post'}
                         thumbIconComponent={ThumbIcon}
                         railBackgroundColor={colors.backgroundLight}
-                        railBorderColor={colors.gray200}
-                        railFillBackgroundColor={colors.primaryMuted}
-                        thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
-                        thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
-                        titleColor={colors.gray400}
+                        railBorderColor={colors.primary}
+                        railFillBackgroundColor={colors.primary}
+                        thumbIconBackgroundColor={colors.primary}
+                        thumbIconBorderColor={colors.primary}
+                        titleColor={colors.primary}
                         titleFontSize={13}
                         height={60}
                         swipeSuccessThreshold={70}
@@ -319,44 +325,34 @@ export default AddContactScreen;
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container:    { flex: 1, backgroundColor: colors.white },
-
-    // Header
     header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray100 },
     backBtn:      { flexDirection: 'row', alignItems: 'center', gap: 2 },
     backLabel:    { fontSize: 17, color: colors.info },
     headerTitle:  { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
     headerSpacer: { width: 70 },
-
-    // Body
     body:         { flex: 1 },
     bodyContent:  { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 8 },
 
-    // Toast
-    toast:        { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.danger, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, shadowColor: colors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-    toastText:    { flex: 1, fontSize: 13, fontWeight: '600', color: colors.white, lineHeight: 18 },
+    toast:     { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.danger, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, shadowColor: colors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+    toastText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.white, lineHeight: 18 },
 
-    // Avatar
     avatarSection: { alignItems: 'center', paddingVertical: 24 },
     avatarOuter:   { width: 96, height: 96, borderRadius: 24, borderWidth: 2, borderColor: colors.primaryMuted, padding: 4, backgroundColor: colors.white, shadowColor: colors.shadowSm, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
     avatarInner:   { flex: 1, borderRadius: 18, backgroundColor: colors.backgroundLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     avatarImage:   { width: '100%', height: '100%' },
     cameraBtn:     { position: 'absolute', bottom: 18, right: '50%', marginRight: -52, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.white, shadowColor: colors.shadowMd, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
 
-    // Section
     section:      { gap: 12 },
     sectionTitle: { fontSize: 12, fontWeight: '800', color: colors.primary, letterSpacing: 1.2, textTransform: 'uppercase', paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: colors.primaryMuted, alignSelf: 'flex-start' },
 
-    // Balance toggle
-    balanceToggleRow:          { flexDirection: 'row', gap: 10 },
-    balanceToggleBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.backgroundLight, borderWidth: 2, borderColor: 'transparent' },
-    balanceToggleBtnActivedr:  { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
-    balanceToggleBtnActiveDr:  { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
-    balanceToggleBtnActiveCr:  { backgroundColor: colors.dangerLight, borderColor: colors.danger },
-    balanceBadge:              { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-    balanceBadgeText:          { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-    balanceToggleLabel:        { fontSize: 11, fontWeight: '800', color: colors.gray500, letterSpacing: 0.8, textTransform: 'uppercase' },
+    balanceToggleRow:         { flexDirection: 'row', gap: 10 },
+    balanceToggleBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.backgroundLight, borderWidth: 2, borderColor: 'transparent' },
+    balanceToggleBtnActiveDr: { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
+    balanceToggleBtnActiveCr: { backgroundColor: colors.dangerLight,  borderColor: colors.danger },
+    balanceBadge:             { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+    balanceBadgeText:         { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+    balanceToggleLabel:       { fontSize: 11, fontWeight: '800', color: colors.gray500, letterSpacing: 0.8, textTransform: 'uppercase' },
 
-    // Footer
     footer:     { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.gray100 },
     footerHint: { textAlign: 'center', marginTop: 10, fontSize: 10, fontWeight: '800', color: colors.gray400, letterSpacing: 2, textTransform: 'uppercase' },
 });

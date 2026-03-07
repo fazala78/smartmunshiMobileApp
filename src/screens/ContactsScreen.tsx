@@ -5,14 +5,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  ScrollView,
   FlatList,
   ActivityIndicator,
   RefreshControl,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { RootStackParamList } from '../types/navigation';
@@ -27,6 +25,11 @@ import Filter from '../components/Filter';
 import Header from '../components/ui/Header';
 import FilterModal from '../components/FilterModal';
 import MultiSelectFilter from '../components/MultiSelectChips';
+import Empty from '../components/common/Empty';
+import Loading from '../components/common/Loading';
+import FilterTabs from '../components/FilterTabs';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Contacts'>;
@@ -71,9 +74,9 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
   // Create quick filter chips from contact types
   const quickFilters = useMemo<FilterChip[]>(() => {
     return [
-      { id: 'all', label: 'All' },
+      { key: 'all', label: 'All' },
       ...contactTypes.map((type: string) => ({
-        id: type,
+        key: type,
         label: type,
       })),
     ];
@@ -250,10 +253,7 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
     if (!isFetchingNextPage) return null;
 
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#13ec5b" />
-        <Text style={styles.footerText}>Loading more...</Text>
-      </View>
+      <Loading/>
     );
   };
 
@@ -261,15 +261,7 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
     if (isLoading) return null;
 
     return (
-      <View style={styles.emptyContainer}>
-        <Icon name="contacts" size={64} color="#E5E7EB" />
-        <Text style={styles.emptyTitle}>No contacts found</Text>
-        <Text style={styles.emptyText}>
-          {filters.searchQuery
-            ? 'Try adjusting your search or filters'
-            : 'Start by adding your first contact'}
-        </Text>
-      </View>
+      <Empty title="No contacts found" />
     );
   };
 
@@ -278,45 +270,19 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
       {/* Header */}
-      <Header title="Contacts" />
+        <Header title='Contacts' navigation={null}></Header>
 
       {/* Search Bar */}
       <Filter placeHolder="Search Contacts..." setFilters={setFilters} filters={filters} handleOpenFilters={handleOpenFilters} />
       {/* Quick Filter Chips */}
       {quickFilters.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterChipsContainer}
-          style={styles.filterChipsList}
-        >
-          {quickFilters.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.filterChip,
-                filters.contactType === item.id && styles.filterChipActive,
-              ]}
-              onPress={() =>
-                setFilters({
-                  ...filters,
-                  contactType: item.id,
-                })
-              }
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  filters.contactType === item.id && styles.filterChipTextActive,
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+        <FilterTabs
+                tabs={quickFilters}
+                value={filters.contactType}
+                onChange={(key) => setFilters((prev) => ({ ...prev, contactType: key }))}
+            />
+     )}
+      
 
       {/* Contacts List */}
       {isLoading && contacts.length === 0 ? (
@@ -387,6 +353,8 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
         <MultiSelectFilter
           title="CONTACT CATEGORY"
           options={categories}
+          valueKey = 'id'
+          labelKey = 'name'
           selectedValues={draftFilters.category}
           onSelectionChange={handleCategoryChange}
         />
