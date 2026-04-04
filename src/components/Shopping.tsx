@@ -10,22 +10,9 @@ import CartItemRow from '../components/CartItemRow';
 import AddItemModal from '../screens/modals/AddItemModal';
 import { colors } from '../theme';
 import { Cart, Inventory } from '../types/Inventory';
+import useConfiguration from '../utils/configuration';
 
-// ─── Colors ──────────────────────────────────────────────────────────────────
-const COLORS = {
-  brand:    colors.primary,
-  gray900:  '#111827',
-  gray700:  '#374151',
-  gray600:  '#4b5563',
-  gray500:  colors.textSecondary,
-  gray400:  colors.textMuted,
-  gray200:  '#e5e7eb',
-  red:      colors.error,
-  amber:    colors.warning,
-  blue:     colors.info,
-  orange:   colors.warning2,
-  emerald:  colors.primary,
-};
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +49,8 @@ export default function Shopping({
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
   const [pendingProduct,      setPendingProduct]      = useState<Cart | null>(null);
   const [editingIndex,        setEditingIndex]        = useState<number | null>(null);
+    const configuration = useConfiguration();
+  
 
   // ── Current items for the given attribute ─────────────────────────────────
   const items = getItems(payload, attribute);
@@ -158,7 +147,7 @@ export default function Shopping({
 
         {items.length === 0 ? (
           <View style={styles.emptyCart}>
-            <Icon name="shopping-cart" size={40} color={COLORS.gray400} />
+            <Icon name="shopping-cart" size={40} color={colors.gray400} />
             <Text style={styles.emptyCartText}>No items added yet</Text>
           </View>
         ) : (
@@ -186,6 +175,7 @@ export default function Shopping({
         onChange={setPendingProduct}
         onConfirm={handleConfirmItem}
         onDismiss={handleDismissAddItem}
+        configuration = {configuration}
       />
     </>
   );
@@ -196,11 +186,11 @@ const styles = StyleSheet.create({
   orderTitle: {
     fontSize:    11,
     fontWeight:  '700',
-    color:       COLORS.gray500,
+    color:       colors.gray500,
     letterSpacing: 1.2,
     marginBottom: 8,
   },
   emptyCart:     { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  emptyCartText: { fontSize: 14, color: COLORS.gray500 },
-  separator:     { height: 1, backgroundColor: COLORS.gray200, marginVertical: 8 },
+  emptyCartText: { fontSize: 14, color: colors.gray500 },
+  separator:     { height: 1, backgroundColor: colors.gray200, marginVertical: 8 },
 });

@@ -130,7 +130,7 @@ export interface ContactForm {
   currency: null;
 }
 export interface ContactCategory {
-  id?: string;
+  id?: number;
   number: string;
 }
 

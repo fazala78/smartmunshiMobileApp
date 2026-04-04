@@ -1,87 +1,125 @@
-import React, { useState, useCallback } from 'react';
-import {
-    View, Text, StyleSheet, FlatList,
-} from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { SwipeRow } from 'react-native-swipe-list-view';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
 import useCurrency from '../utils/currency';
-import DatePicker from '../components/DatePicker';
 import Filter from '../components/Filter';
 import Header from '../components/ui/Header';
 import FilterModal from '../components/FilterModal';
 import ApiDropdown from '../components/ui/ApiDropdown';
 import DatePickerField from '../components/DatePickerField';
-import { chequeQueryParams } from '../types/chques';
-import { getCheques } from '../services/cheques';
+import { Cheque, chequeQueryParams, ChequeStatus } from '../types/cheques';
+import { getCheques, recordInstallment, updateCheque } from '../services/cheques';
 import Error from '../components/common/Error';
 import Loading from '../components/common/Loading';
 import Empty from '../components/common/Empty';
-import ChequeCard, { Cheque, ChequeAction, ChequeStatus } from '../components/ChequeCard';
+import ChequeCard from '../components/ChequeCard';
 import FilterTabs from '../components/FilterTabs';
+import { ConfirmDialog, InstallmentDialog } from '../components/ChequeActionModals';
+import { Account } from '../types/payments';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
     { key: 'unsettled', label: 'Pending' },
-    { key: 'installment', label: 'Partial paid cheques' },
-    { key: 'cleared', label: 'Cleared' },
-    { key: 'partial', label: 'Partial' },
+    { key: 'partial', label: 'Partial Pending' },
+    { key: 'installment', label: 'Partial paid' },
     { key: 'issued', label: 'Paid' },
     { key: 'clearing', label: 'Clearing' },
     { key: 'handed_over', label: 'Forwarded' },
 ];
 
-// ─── Action builder — returns different buttons per status ────────────────────
+/** Width (px) of each swipe action button */
+const ACTION_BUTTON_WIDTH = 64;
 
-const buildActions = (
+// ─── Dialog types ─────────────────────────────────────────────────────────────
+
+type DialogType = 'settled' | 'bounced' | 'return' | 'swap' | null;
+
+interface DialogState {
+    type: DialogType;
+    cheque: Cheque | null;
+}
+
+const DIALOG_META: Record<NonNullable<DialogType>, {
+    title: string; message: string; confirmLabel: string;
+    confirmColor: string; icon: string;
+}> = {
+    settled: { title: 'Clear Cheque', message: 'Are you sure you want to mark this cheque as cleared? This action cannot be undone.', confirmLabel: 'Clear', confirmColor: colors.primary, icon: 'check-circle' },
+    bounced: { title: 'Bounce Cheque', message: 'Mark this cheque as bounced? The contact will be notified and the amount will be reversed.', confirmLabel: 'Bounce', confirmColor: colors.danger, icon: 'cancel' },
+    return: { title: 'Return Cheque', message: 'Return this cheque to the contact? The transaction will be reversed.', confirmLabel: 'Return', confirmColor: colors.info, icon: 'undo' },
+    swap: { title: 'Exchange to Cash', message: 'Exchange this cheque for cash? This will settle the cheque immediately.', confirmLabel: 'Exchange', confirmColor: colors.info, icon: 'refresh' },
+};
+
+// ─── Action definitions per status ───────────────────────────────────────────
+
+interface SwipeAction {
+    key: string;
+    label: string;
+    icon: string;
+    color: string;
+    onPress: (cheque: Cheque) => void;
+}
+
+const getSwipeActions = (
     status: ChequeStatus,
-    onClear: (id: number) => void,
-    onBounce: (id: number) => void,
-    onReturn: (id: number) => void,
-    onReopen: (id: number) => void,
-): ChequeAction[] => {
+    onClear: (c: Cheque) => void,
+    onBounce: (c: Cheque) => void,
+    onInstallment: (c: Cheque) => void,
+    onReturn: (c: Cheque) => void,
+    onExchange: (c: Cheque) => void,
+): SwipeAction[] => {
     switch (status) {
         case 'unsettled':
-        case 'pending':
-            // Pending: can Clear, Bounce, or Return
+        case 'partial':
+        case 'installment':
             return [
-                { label: 'Clear', icon: 'check-circle', color: '#22c55e', onPress: onClear },
-                { label: 'Bounce', icon: 'cancel', color: '#ef4444', onPress: onBounce },
-                { label: 'Return', icon: 'undo', color: '#f59e0b', onPress: onReturn },
-            ];
-        case 'bounced':
-            // Bounced: can only Reopen or Return
-            return [
-                { label: 'Reopen', icon: 'refresh', color: '#6366f1', onPress: onReopen },
-                { label: 'Return', icon: 'undo', color: '#f59e0b', onPress: onReturn },
+                { key: 'clear', label: 'Clear', icon: 'check-circle', color: colors.primary, onPress: onClear },
+                { key: 'installment', label: 'Instal.', icon: 'schedule', color: colors.warning, onPress: onInstallment },
+                { key: 'bounce', label: 'Bounce', icon: 'cancel', color: colors.danger, onPress: onBounce },
             ];
         case 'clearing':
-            // Clearing: can Clear or Bounce
             return [
-                { label: 'Clear', icon: 'check-circle', color: '#22c55e', onPress: onClear },
-                { label: 'Bounce', icon: 'cancel', color: '#ef4444', onPress: onBounce },
+                { key: 'clear', label: 'Clear', icon: 'check-circle', color: colors.primary, onPress: onClear },
+                { key: 'bounce', label: 'Bounce', icon: 'cancel', color: colors.danger, onPress: onBounce },
             ];
-        case 'cleared':
         case 'issued':
-            // Settled: only Return makes sense
             return [
-                { label: 'Return', icon: 'undo', color: '#f59e0b', onPress: onReturn },
+                { key: 'clear', label: 'Clear', icon: 'check-circle', color: colors.primary, onPress: onClear },
+                { key: 'installment', label: 'Instal.', icon: 'schedule', color: colors.warning, onPress: onInstallment },
+                { key: 'bounce', label: 'Bounce', icon: 'cancel', color: colors.danger, onPress: onBounce },
+                { key: 'exchange', label: 'Exch. Cash', icon: 'refresh', color: colors.info, onPress: onExchange },
             ];
         case 'handed_over':
-            // Forwarded: can Reopen or Return
             return [
-                { label: 'Reopen', icon: 'refresh', color: '#6366f1', onPress: onReopen },
-                { label: 'Return', icon: 'undo', color: '#f59e0b', onPress: onReturn },
+                { key: 'clear', label: 'Clear', icon: 'check-circle', color: colors.primary, onPress: onClear },
+                { key: 'return', label: 'Return', icon: 'undo', color: colors.info, onPress: onReturn },
             ];
         default:
-            // installment / partial — Clear or Bounce
             return [
-                { label: 'Clear', icon: 'check-circle', color: '#22c55e', onPress: onClear },
-                { label: 'Bounce', icon: 'cancel', color: '#ef4444', onPress: onBounce },
+                { key: 'clear', label: 'Clear', icon: 'check-circle', color: colors.primary, onPress: onClear },
+                { key: 'installment', label: 'Instal.', icon: 'schedule', color: colors.warning, onPress: onInstallment },
+                { key: 'bounce', label: 'Bounce', icon: 'cancel', color: colors.danger, onPress: onBounce },
             ];
     }
+};
+
+// ─── List footer ──────────────────────────────────────────────────────────────
+// Extracted outside the screen component to avoid re-creation on every render.
+
+const ListFooter: React.FC<{ isFetchingNextPage: boolean }> = ({ isFetchingNextPage }) => {
+    if (!isFetchingNextPage) return null;
+    return (
+        <View style={styles.footerLoader}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.footerLoaderText}>Loading more...</Text>
+        </View>
+    );
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -94,51 +132,188 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
 
     const [showFilterModal, setShowFilterModal] = useState(false);
     const [filters, setFilters] = useState<chequeQueryParams>({
-        searchQuery: '', contacts: [], accounts: [],clearing_date:'', status: 'unsettled',
+        searchQuery: '', contacts: [], accounts: [], clearing_date: '', status: 'unsettled',
     });
     const [draftFilters, setDraftFilters] = useState<chequeQueryParams>({ ...filters });
 
+    // ── Dialog state ──────────────────────────────────────────────────────────
+    const [dialog, setDialog] = useState<DialogState>({ type: null, cheque: null });
+    const [showInstallment, setShowInstallment] = useState(false);
+    const [installmentCheque, setInstallmentCheque] = useState<Cheque | null>(null);
+    const [actionLoading, setActionLoading] = useState(false);
+
+    // Ref to the SwipeListView so we can close open rows after an action
+    const swipeListRef = useRef<any>(null);
+
     const currency = useCurrency();
 
-    const { data, isLoading, isError, refetch } = useQuery({
+    // ── Infinite query ────────────────────────────────────────────────────────
+    const {
+        data,
+        isLoading,
+        isError,
+        isRefetching,
+        refetch,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ['cheques-list', filters],
-        queryFn: () => getCheques(filters),
+        queryFn: ({ pageParam = 1 }) =>
+            getCheques({ ...filters, page: pageParam }),
+        initialPageParam: 1,
+        getNextPageParam: (lastPage: any) => {
+            const { current_page, last_page } = lastPage ?? {};
+            return current_page < last_page ? current_page + 1 : undefined;
+        },
         staleTime: 30_000,
     });
 
-    const cheques: Cheque[] = data ?? [];
+    const cheques: Cheque[] = data?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
 
-    // ── Action handlers ───────────────────────────────────────────────────────
-    const handleClear = useCallback((id: number) => { /* api call */ }, []);
-    const handleBounce = useCallback((id: number) => { /* api call */ }, []);
-    const handleReturn = useCallback((id: number) => { /* api call */ }, []);
-    const handleReopen = useCallback((id: number) => { /* api call */ }, []);
-    const handlePress = useCallback((item: Cheque) => {
-        // navigation.navigate('ChequeDetail', { id: item.id });
+    // ── Pagination ────────────────────────────────────────────────────────────
+    const handleEndReached = useCallback(() => {
+        if (!hasNextPage || isFetchingNextPage) return;
+        fetchNextPage();
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+    // ── Dialog handlers ───────────────────────────────────────────────────────
+    const openConfirm = useCallback((type: NonNullable<DialogType>, cheque: Cheque) => {
+        // Close any open swipe row before showing dialog
+        swipeListRef.current?.closeAllOpenRows?.();
+        setDialog({ type, cheque });
     }, []);
 
-    // ── Filter handlers ───────────────────────────────────────────────────────
-    const handleOpenFilters = useCallback(() => {
-        setDraftFilters(filters);
-        setShowFilterModal(true);
-    }, [filters]);
+    const closeConfirm = useCallback(() => setDialog({ type: null, cheque: null }), []);
 
+    const handleConfirmAction = useCallback(async () => {
+        if (!dialog.cheque || !dialog.type) return;
+        try {
+            setActionLoading(true);
+            await updateCheque(dialog.cheque, dialog.type);
+            await refetch();
+            closeConfirm();
+        } catch (error: any) {
+            console.error(error?.response?.data?.message ?? 'Something went wrong.');
+        } finally {
+            setActionLoading(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dialog]);
+
+    const handleInstallmentConfirm = useCallback(async (amount: string, account: Account | undefined) => {
+        if (!installmentCheque) return;
+        try {
+            setActionLoading(true);
+            await recordInstallment(installmentCheque, parseFloat(amount), account?.id);
+            await refetch();
+            setShowInstallment(false);
+            setInstallmentCheque(null);
+        } catch (error: any) {
+            console.error(error?.response?.data?.message ?? 'Something went wrong.');
+        } finally {
+            setActionLoading(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [installmentCheque]);
+
+    // ── Card action callbacks ─────────────────────────────────────────────────
+    const handleClear = useCallback((c: Cheque) => openConfirm('settled', c), [openConfirm]);
+    const handleBounce = useCallback((c: Cheque) => openConfirm('bounced', c), [openConfirm]);
+    const handleReturn = useCallback((c: Cheque) => openConfirm('return', c), [openConfirm]);
+    const handleExchange = useCallback((c: Cheque) => openConfirm('swap', c), [openConfirm]);
+    const handleInstallment = useCallback((c: Cheque) => {
+        swipeListRef.current?.closeAllOpenRows?.();
+        setInstallmentCheque(c);
+        setShowInstallment(true);
+    }, []);
+    const handlePress = useCallback((_c: Cheque) => { /* navigate to detail */ }, []);
+
+    // ── Filter handlers ───────────────────────────────────────────────────────
+    const handleOpenFilters = useCallback(() => { setDraftFilters(filters); setShowFilterModal(true); }, [filters]);
     const handleResetFilters = useCallback(() => {
-        const reset: chequeQueryParams = {
-            searchQuery: '', contacts: [], accounts: [], status: 'unsettled', date: filters.date,
-        };
+        const reset: chequeQueryParams = { searchQuery: '', contacts: [], accounts: [], status: 'unsettled', date: filters.date };
         setDraftFilters(reset);
         setFilters(reset);
     }, [filters.date]);
+    const handleApplyFilters = () => { setFilters(draftFilters); setShowFilterModal(false); };
 
-    const handleApplyFilters = () => {
-        setFilters(draftFilters);
-        setShowFilterModal(false);
-    };
+    // ── Swipe renderers ───────────────────────────────────────────────────────
+    // Each row uses SwipeRow directly so rightOpenValue can be per-item dynamic.
+
+    const renderItem = useCallback(({ item }: { item: Cheque }) => {
+        const actions = getSwipeActions(
+            item.status,
+            handleClear,
+            handleBounce,
+            handleInstallment,
+            handleReturn,
+            handleExchange,
+        );
+        const openValue = -(ACTION_BUTTON_WIDTH * actions.length);
+        const lastIndex = actions.length - 1;
+
+        // SwipeRow types omit the children prop — cast via any to bypass the TS error.
+        // At runtime SwipeRow requires exactly two children:
+        //   [0] hidden layer  [1] visible card
+        const SwipeRowAny = SwipeRow as any;
+
+        return (
+            <SwipeRowAny
+                rightOpenValue={openValue}
+                disableRightSwipe
+                closeOnRowPress
+            >
+                <View style={styles.hiddenRow}>
+                    {actions.map((action, index) => (
+                        <TouchableOpacity
+                            key={action.key}
+                            style={[
+                                styles.hiddenButton,
+                                { backgroundColor: action.color },
+                                index === 0 && styles.hiddenButtonLeft,
+                                index === lastIndex && styles.hiddenButtonRight,
+                            ]}
+                            onPress={() => action.onPress(item)}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialIcons name={action.icon} size={20} color="#fff" />
+                            <Text style={styles.hiddenButtonLabel}>{action.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                <ChequeCard
+                    item={item}
+                    currency={currency}
+                    onPress={handlePress}
+                />
+            </SwipeRowAny>
+        );
+    }, [currency, handlePress, handleClear, handleBounce, handleInstallment, handleReturn, handleExchange]);
 
     // ─── Render ────────────────────────────────────────────────────────────────
     return (
         <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+
+            {dialog.type && (
+                <ConfirmDialog
+                    visible={!!dialog.type}
+                    cheque={dialog.cheque}
+                    loading={actionLoading}
+                    onConfirm={handleConfirmAction}
+                    onCancel={closeConfirm}
+                    {...DIALOG_META[dialog.type]}
+                />
+            )}
+
+            <InstallmentDialog
+                visible={showInstallment}
+                cheque={installmentCheque}
+                loading={actionLoading}
+                onConfirm={handleInstallmentConfirm}
+                onCancel={() => { setShowInstallment(false); setInstallmentCheque(null); }}
+            />
 
             <Header title="Cheques" navigation={navigation} />
 
@@ -149,16 +324,12 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
                 handleOpenFilters={handleOpenFilters}
             />
 
-            <DatePicker onDateChange={(date) => setFilters((p: any) => ({ ...p, date }))} />
-
-            {/* Status filter chips */}
             <FilterTabs
                 tabs={STATUS_FILTERS}
                 value={filters.status}
                 onChange={(key) => setFilters((prev) => ({ ...prev, status: key }))}
             />
 
-            {/* List section header */}
             <View style={styles.listHeaderRow}>
                 <Text style={styles.listHeaderText}>Cheque Results</Text>
                 {cheques.length > 0 && (
@@ -168,37 +339,27 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
                 )}
             </View>
 
-            {/* States */}
             {isLoading && <Loading />}
             {isError && !isLoading && <Error refetch={refetch} />}
             {!isLoading && !isError && cheques.length === 0 && <Empty title="No cheques found" />}
 
-            {/* List */}
             {!isLoading && !isError && cheques.length > 0 && (
                 <FlatList
+                    ref={swipeListRef}
                     data={cheques}
+                    refreshing={isRefetching}
+                    onRefresh={refetch}
                     keyExtractor={(item) => String(item.id)}
                     style={styles.flatList}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
-                    renderItem={({ item }) => (
-                        <ChequeCard
-                            item={item}
-                            currency={currency}
-                            onPress={handlePress}
-                            actions={buildActions(
-                                item.status,
-                                handleClear,
-                                handleBounce,
-                                handleReturn,
-                                handleReopen,
-                            )}
-                        />
-                    )}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.4}
+                    ListFooterComponent={<ListFooter isFetchingNextPage={isFetchingNextPage} />}
+                    renderItem={renderItem}
                 />
             )}
 
-            {/* Filter Modal */}
             <FilterModal
                 visible={showFilterModal}
                 title="Filter Cheques"
@@ -234,8 +395,7 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
                         label="Clearing Date"
                         value={(draftFilters as any).clearing_date ?? null}
                         onChange={(d) => setDraftFilters((p: any) => ({
-                            ...p,
-                            clearing_date: d ? d : undefined,
+                            ...p, clearing_date: d ? d : undefined,
                         }))}
                         placeholder="Select date"
                         inputBg={colors.backgroundLight}
@@ -249,7 +409,6 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
 
 export default ChequeListScreen;
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.white },
     listHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
@@ -259,4 +418,33 @@ const styles = StyleSheet.create({
     flatList: { flex: 1 },
     listContent: { paddingHorizontal: 12, paddingBottom: 40, gap: 10 },
     filterSection: { marginBottom: 15 },
+    footerLoader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
+    footerLoaderText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+
+    // ── Swipe hidden row ──────────────────────────────────────────────────────
+    hiddenRow: {
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'stretch',
+    },
+    hiddenButton: {
+        width: ACTION_BUTTON_WIDTH,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+    },
+    hiddenButtonLeft: {
+        borderTopLeftRadius: 5,
+        borderBottomLeftRadius: 5,
+    },
+    hiddenButtonRight: {
+        borderTopRightRadius: 5,
+        borderBottomRightRadius: 5,
+    },
+    hiddenButtonLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#fff',
+    },
 });

@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
   Animated,
@@ -11,25 +10,29 @@ import {
   StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { getExpense } from '../../services/transactionService';
 import Loading from '../../components/common/Loading';
 import Error from '../../components/common/Error';
 import { useQuery } from '@tanstack/react-query';
 import ModalFooter from '../../components/ModalFooter';
 import { ExpenseSlip } from '../../types/receipt';
+import ModalHeader from '../../components/ModalHeader';
+import { sharePDF } from '../../services/shareService';
+import { fetchExpenseHtml, getExpense } from '../../services/expensePaymentService';
+import { iosSharePDF } from '../../services/iosShareService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 
 interface TrItem {
   transaction_id: number;
-  route: string;
-  data: ExpenseSlip;
+  route?: string|null;
+  data?: ExpenseSlip;
 
 }
 interface ExpenseReceiptProps {
   visible: boolean;
   onClose: () => void;
+   onAddNew: () => void;
   transaction: TrItem;
 }
 
@@ -39,6 +42,7 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
   visible,
   onClose,
   transaction,
+  onAddNew,
 }) => {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -72,6 +76,7 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
         }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const hasRoute = !!transaction?.route;
@@ -83,17 +88,29 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
     enabled: visible && hasRoute,   // ← skip API if no route
   });
 
-  const data = hasRoute ? fetchedData : transaction?.data;
+
+  const { data: htmlData } = useQuery({
+    queryKey: ['expenseHtml', transaction?.transaction_id],
+    queryFn: async () => fetchExpenseHtml(transaction.transaction_id),
+    staleTime: 30 * 1000,
+    enabled: visible,
+  });
+  const data = hasRoute ? fetchedData as ExpenseSlip : transaction as unknown as ExpenseSlip;
   const showLoader = hasRoute && isLoading;
   const showError = hasRoute && isError;
-
-
-
 
   if (!visible) {
     return null;
   }
-
+  
+   const handlePrint = async () => {
+       if (!htmlData) return;
+        if (Platform.OS === 'android') {
+           await sharePDF(htmlData, data?.title as string);
+        }else{
+            await iosSharePDF(htmlData, data?.title as string);
+        }
+     };
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Animated.View
@@ -111,13 +128,11 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
         {/* Top App Bar */}
         {!showLoader && !showError && data && (
           <>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Icon name="close" size={24} color="#111813" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>{data.title}</Text>
-              <View style={styles.headerSpacer} />
-            </View>
+            <ModalHeader
+              title={data.title}
+              onClose={onClose}
+              onShare={handlePrint}
+            />
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -176,7 +191,7 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
             </ScrollView>
 
 
-            <ModalFooter />
+            <ModalFooter onClose={onClose} onAddNew={onAddNew} />
           </>
         )}
 
@@ -202,17 +217,7 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
-  },
+
   successLabel: {
     fontSize: 12,
     fontWeight: 'bold',
@@ -220,24 +225,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 4,
   },
-  closeButton: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111813',
-    flex: 1,
-    textAlign: 'center',
-    letterSpacing: -0.3,
-  },
-  headerSpacer: {
-    width: 48,
-  },
-
   // Scroll View
   scrollView: {
     flex: 1,

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   StatusBar,
   FlatList,
-  ActivityIndicator,
   RefreshControl,
   Alert,
 } from 'react-native';
@@ -29,7 +28,8 @@ import Empty from '../components/common/Empty';
 import Loading from '../components/common/Loading';
 import FilterTabs from '../components/FilterTabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-
+import Error from '../components/common/Error';
+import { FloatingFabButton } from '../components/ui/FloatingFabButton';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Contacts'>;
@@ -103,7 +103,6 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
         search: filters,
       };
       const response = await fetchContacts(filterParams);
-      console.log(response);
       return response;
     },
     getNextPageParam: (lastPage) => {
@@ -147,7 +146,6 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
   // Flatten contacts from all pages
   const contacts = useMemo(() => {
     const allContacts = data?.pages.flatMap((page) => page.data) ?? [];
-    console.log('📊 Total contacts:', allContacts.length, 'Pages:', data?.pages?.length);
     return allContacts;
   }, [data]);
 
@@ -177,8 +175,8 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   const handleAddContact = useCallback(() => {
-    console.log('➕ Add contact pressed');
-    // navigation.navigate('AddContact');
+    navigation.navigate('AddContact');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenFilters = useCallback(() => {
@@ -202,7 +200,7 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
     setShowFilterModal(false);
   };
 
-    const handleCategoryChange = (newSelection: string[]) => {
+  const handleCategoryChange = (newSelection: string[]) => {
     setDraftFilters(prev => ({
       ...prev,
       category: newSelection,
@@ -253,7 +251,7 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
     if (!isFetchingNextPage) return null;
 
     return (
-      <Loading/>
+      <Loading />
     );
   };
 
@@ -270,26 +268,26 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
       {/* Header */}
-        <Header title='Contacts' navigation={null}></Header>
+      <Header title='Contacts' navigation={null}></Header>
 
       {/* Search Bar */}
       <Filter placeHolder="Search Contacts..." setFilters={setFilters} filters={filters} handleOpenFilters={handleOpenFilters} />
       {/* Quick Filter Chips */}
       {quickFilters.length > 0 && (
-        <FilterTabs
-                tabs={quickFilters}
-                value={filters.contactType}
-                onChange={(key) => setFilters((prev) => ({ ...prev, contactType: key }))}
-            />
-     )}
-      
+        <View style={styles.filterTabsWrapper}>
+          <FilterTabs
+            tabs={quickFilters}
+            value={filters.contactType}
+            onChange={(key) => setFilters((prev) => ({ ...prev, contactType: key }))}
+          />
+        </View>
+      )}
+
+      {isError && !isLoading && <Error refetch={refetch} />}
 
       {/* Contacts List */}
       {isLoading && contacts.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading contacts...</Text>
-        </View>
+        <Loading />
       ) : (
         <FlatList
           data={contacts}
@@ -308,21 +306,16 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
             <RefreshControl
               refreshing={isRefetching && !isLoading}
               onRefresh={handleRefresh}
-              colors={['#13ec5b']}
-              tintColor="#13ec5b"
+              colors={[colors.primary]}
+              tintColor={colors.primary}
             />
           }
         />
       )}
 
       {/* Floating Add Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleAddContact}
-        activeOpacity={0.9}
-      >
-        <Icon name="add" size={32} color={colors.white} />
-      </TouchableOpacity>
+      <FloatingFabButton onPress={handleAddContact} />
+
 
       {/* Filter Bottom Sheet Modal */}
 
@@ -353,8 +346,8 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
         <MultiSelectFilter
           title="CONTACT CATEGORY"
           options={categories}
-          valueKey = 'id'
-          labelKey = 'name'
+          valueKey='id'
+          labelKey='name'
           selectedValues={draftFilters.category}
           onSelectionChange={handleCategoryChange}
         />
@@ -374,6 +367,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
 
+  filterTabsWrapper: {
+    height: 52,      // matches FilterTabs row height exactly
+    flexShrink: 0,       // FlatList cannot compress this wrapper
+  },
 
   filterButton: {
     width: 48,
@@ -441,7 +438,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minHeight: 72,
+    minHeight: 75,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.backgroundLight,
@@ -515,23 +512,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: 32,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-
   filterSection: {
     marginBottom: 24,
   },

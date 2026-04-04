@@ -1,14 +1,15 @@
-import React from 'react';
-import { StyleSheet, Text, View, TextInput } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableWithoutFeedback } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors } from '../theme';
-import { Contact, PaymentPayload, Account, Cheque } from '../types/payments';
+import { PaymentPayload, Account, Cheque } from '../types/payments';
 import { Bank } from '../types/contact';
 import AsyncDropdown from './AsyncDropdown';
 import SelectionButton from './ui/SelectionButton';
 import InputField from './ui/InputField';
 import DatePickerField from './DatePickerField';
 import useCurrency from '../utils/currency';
+import { Contact } from '../types/contact';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ interface PaymentMethodsProps {
 const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, methods }) => {
 
   const currency = useCurrency();
+  const amountInputRef = useRef<TextInput>(null);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const isAmountLocked = payload.type === 'received_cheques' && payload.cheque != null;
@@ -41,42 +43,46 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
   const handleMethodChange = (key: string) => {
     update({
       type: key,
-      ...(key !== 'received_cheques' && { cheque: undefined, amount: undefined }),
+      ...(key !== 'received_cheques' && { cheque: undefined }),
     });
   };
 
-  // ── Derived flags (avoids repeating compound conditions in JSX) ────────────
+  // ── Derived flags ─────────────────────────────────────────────────────────
   const isBankMethod = payload.type === 'online' || payload.type === 'account_cheque';
   const isChequeMethod = payload.type === 'cheque' || payload.type === 'account_cheque';
   const isForwardCheque = payload.type === 'received_cheques' || payload.type === 'client_received_cheques';
   const isShowSlip = payload.type === 'online' || payload.type === 'bank_deposit' || payload.type === 'bank_withdraw' || payload.type === 'client_received_cheques';
 
-
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       {/* Amount */}
-      <View style={styles.fieldGroup}>
-        <Text style={styles.fieldLabel}>Amount</Text>
-        <View style={[styles.amountInputWrap, isAmountLocked && styles.amountInputLocked]}>
-          <Text style={styles.amountPrefix}>{currency?.symbol}</Text>
-          <TextInput
-            style={[styles.amountInput, isAmountLocked && styles.amountInputTextLocked]}
-            value={displayAmount}
-            onChangeText={(v) => update({ amount: parseFloat(v) || 0 })}
-            placeholder="0.00"
-            placeholderTextColor={colors.textPlaceholder + '66'}
-            keyboardType="decimal-pad"
-            editable={!isAmountLocked}
-          />
+      <TouchableWithoutFeedback
+        onPress={() => !isAmountLocked && amountInputRef.current?.focus()}
+      >
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Amount</Text>
+          <View style={[styles.amountInputWrap, isAmountLocked && styles.amountInputLocked]}>
+            <Text style={styles.amountPrefix}>{currency?.symbol}</Text>
+            <TextInput
+              ref={amountInputRef}
+              style={[styles.amountInput, isAmountLocked && styles.amountInputTextLocked]}
+              value={displayAmount}
+              onChangeText={(v) => update({ amount: parseFloat(v) || 0 })}
+              placeholder="0.00"
+              placeholderTextColor={colors.textPlaceholder + '66'}
+              keyboardType="decimal-pad"
+              editable={!isAmountLocked}
+            />
+            {isAmountLocked && (
+              <Icon name="lock" size={16} color={colors.textMuted} style={{ marginLeft: 8 }} />
+            )}
+          </View>
           {isAmountLocked && (
-            <Icon name="lock" size={16} color={colors.textMuted} style={{ marginLeft: 8 }} />
+            <Text style={styles.amountLockedHint}>Amount is set from the selected cheque</Text>
           )}
         </View>
-        {isAmountLocked && (
-          <Text style={styles.amountLockedHint}>Amount is set from the selected cheque</Text>
-        )}
-      </View>
+      </TouchableWithoutFeedback>
 
       {/* Payment method */}
       <SelectionButton
@@ -86,8 +92,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
         onSelect={handleMethodChange}
       />
 
-      {/* Bank / Online fields — shown for 'online' and 'account_cheque' */}
-
+      {/* Bank / Online fields */}
       <View style={styles.conditionalFields}>
         {isBankMethod && (
           <AsyncDropdown
@@ -98,8 +103,8 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
             label="Select Bank Account"
             leadingIconName="account-balance-wallet"
             inputBg={colors.backgroundLight}
-            onSelect={(v) => update({ account: v as unknown as Account })}
-          />
+            onSelect={(v) => update({ account: v as unknown as Account })} 
+            value={payload?.account as Account}          />
         )}
         {isShowSlip && (
           <InputField
@@ -114,7 +119,6 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
         )}
       </View>
 
-
       {/* Credit fields */}
       {payload.type === 'credit' && (
         <View style={styles.conditionalFields}>
@@ -126,12 +130,13 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
             label="Select Customer"
             leadingIconName="person-search"
             inputBg={colors.backgroundLight}
-            onSelect={(v) => update({ contact: v as unknown as Contact })}
+            onSelect={(v) => update({ contact: v as unknown  as Contact })}
+            value={payload.contact as Contact}
           />
         </View>
       )}
 
-      {/* Cheque fields — shown for 'cheque' and 'account_cheque' */}
+      {/* Cheque fields */}
       {isChequeMethod && (
         <View style={styles.conditionalFields}>
           <InputField
@@ -144,7 +149,6 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
             placeholder="Cheque Number"
             icon="pin"
           />
-          {/* Issuing bank only for plain cheque, not account_cheque */}
           {payload.type === 'cheque' && (
             <AsyncDropdown
               url="/banks"
@@ -155,11 +159,12 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
               leadingIconName="account-balance"
               inputBg={colors.backgroundLight}
               onSelect={(v) => update({ bank: v as unknown as Bank })}
+              value={payload.bank as Account}
             />
           )}
           <DatePickerField
             label="Cheque Date"
-            value={payload.cheque_date ?? null}
+            value={payload.cheque_date as Date ?? null}
             onChange={(d) => update({ cheque_date: d ?? undefined })}
             placeholder="Select date"
             inputBg={colors.backgroundLight}
@@ -179,6 +184,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
             leadingIconName="description"
             inputBg={colors.backgroundLight}
             onSelect={(v) => handleChequeSelect(v as unknown as Cheque)}
+            value={payload.cheque as Cheque}
           />
           {payload.cheque && (
             <View style={styles.chequeInfoCard}>
@@ -208,7 +214,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
       {/* Transaction date */}
       <DatePickerField
         label="Transaction Date"
-        value={payload.date ?? null}
+        value={payload.date as Date ?? null}
         onChange={(d) => update({ date: d ?? undefined })}
         placeholder="Select date"
         inputBg={colors.backgroundLight}
@@ -238,7 +244,7 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 8 },
   fieldLabel: { fontSize: 10, fontWeight: '800', color: colors.textPlaceholder, letterSpacing: 1.2, textTransform: 'uppercase' },
   amountInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundLight, borderRadius: 16, height: 68, paddingHorizontal: 16, borderWidth: 1.5, borderColor: colors.gray200 },
-  amountInputLocked: { backgroundColor: colors.gray100, borderColor: colors.gray300, borderStyle: 'dashed' },
+  amountInputLocked: { backgroundColor: colors.gray100, borderColor: colors.gray300, opacity: 0.75 },
   amountInput: { flex: 1, fontSize: 24, fontWeight: '800', color: colors.gray900 },
   amountInputTextLocked: { color: colors.textSecondary },
   amountPrefix: { fontSize: 24, fontWeight: '800', color: colors.textPlaceholder, marginRight: 4 },

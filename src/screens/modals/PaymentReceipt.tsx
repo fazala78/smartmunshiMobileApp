@@ -9,7 +9,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import { getReceipt } from '../../services/transactionService';
+import { fetchReceiptHtml, getReceipt } from '../../services/paymentService';
 import { useQuery } from '@tanstack/react-query';
 import Loading from '../../components/common/Loading';
 import Error from '../../components/common/Error';
@@ -17,19 +17,24 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import ModalHeader from '../../components/ModalHeader';
 import ModalFooter from '../../components/ModalFooter';
 import { PaymentResource } from '../../types/receipt';
+import { colors } from '../../theme';
+import { sharePDF } from '../../services/shareService';
+import { iosSharePDF } from '../../services/iosShareService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 
 interface TrItem {
   transaction_id: number;
-  route: string;
-  data:PaymentResource;
+  route?: string;
+  data?:PaymentResource;
 }
 interface PaymentReceiptProps {
   visible: boolean;
   onClose: () => void;
   transaction: TrItem;
+  onAddNew:() => void;
+
 }
 
 // Payment Receipt Component
@@ -37,6 +42,7 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
   visible,
   onClose,
   transaction,
+  onAddNew,
 }) => {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -79,6 +85,7 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
         }),
       ]).start();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Fetch transaction details
@@ -92,23 +99,49 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
     enabled: visible && hasRoute,   // ← skip API if no route
   });
 
-  // ── Resolve data — prefer fetched, fall back to passed data ───────────────
+   // ── Resolve data — prefer fetched, fall back to passed data ───────────────
   // If no route, show transaction.data directly (no loading, no error)
-  const data = hasRoute ? fetchedData : transaction?.data;
+   const data = hasRoute ? fetchedData as PaymentResource : transaction as unknown as PaymentResource;
   const showLoader = hasRoute && isLoading;
   const showError = hasRoute && isError;
+
+
+  const htmlRoute = hasRoute
+    ? transaction.route
+    : data?.html_route;
+
+      const hasHtmlRoute = !!htmlRoute;
+
+    const { data: htmlData } = useQuery({
+      queryKey: ['expenseHtml', transaction?.transaction_id],
+      queryFn: async () => fetchReceiptHtml(htmlRoute!,transaction.transaction_id),
+      staleTime: 30 * 1000,
+      enabled: visible && hasHtmlRoute,
+    });
+
+ 
+   const handlePrint = async () => {
+     if (!htmlData) return;
+      if (Platform.OS === 'android') {
+         await sharePDF(htmlData, data?.title + ' ' + data?.id);
+      }else{
+          await iosSharePDF(htmlData, data?.title + ' ' + data?.id);
+      }
+    
+   };
+ 
 
 
   const getStatusColor = (status: string): string => {
     switch (status) {
       case 'Pending':
-        return '#13ec5b';
+        return colors.warning;
       case 'Cleared':
-        return '#10b981';
+        return colors.primary;
       case 'Bounced':
-        return '#ef4444';
+        return colors.danger;
       default:
-        return '#6b7280';
+        return colors.gray500;
     }
   };
 
@@ -144,7 +177,11 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
         {/* Header with Close Button */}
         {!showLoader && !showError && data && (
           <>
-            <ModalHeader title={data?.title} onClose={onClose} />
+            <ModalHeader
+              title={data.title}
+              onClose={onClose}
+              onShare={handlePrint}
+            />
             <ScrollView
               showsVerticalScrollIndicator={false}
               bounces={false}
@@ -189,8 +226,8 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
                   <Text style={styles.detailValue}>{data.contact?.name || ''}</Text>
                 </View>
 
-                {/* Divider */}
-                <View style={styles.divider} />
+            
+              
 
                 {/* Payment Breakdown */}
                 <View style={styles.breakdownSection}>
@@ -264,13 +301,13 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
                 </View>
 
                 {/* Divider */}
-                <View style={styles.divider} />
+               
               </View>
             </ScrollView>
 
 
             {/* Footer - Invoice Style */}
-            <ModalFooter />
+             <ModalFooter onClose={onClose} onAddNew={onAddNew} />
           </>
         )}
 
@@ -397,15 +434,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 16,
   },
-
-  // Divider
-  divider: {
-    borderTopWidth: 2,
-    borderTopColor: '#e5e7eb',
-    borderStyle: 'dashed',
-    marginVertical: 8,
-  },
-
   // Breakdown Section
   breakdownSection: {
     marginTop: 12,

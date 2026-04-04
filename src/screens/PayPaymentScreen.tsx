@@ -14,10 +14,14 @@ import { PaymentPayload } from '../types/payments';
 import PaymentMethods from '../components/PaymentMethods';
 import AsyncDropdown from '../components/AsyncDropdown';
 import useCurrency from '../utils/currency';
-import { Contact } from '../types/payments';
+import { Contact } from '../types/contact';
 import PaymentReceipt from './modals/PaymentReceipt';
 import { toDateString } from '../utils/stringUtils';
-import { createPaidPayment } from '../services/transactionService';
+import Header from '../components/ui/Header';
+import FooterError from '../components/common/FooterError';
+import { PaymentResource } from '../types/receipt';
+import { createPaidPayment } from '../services/paymentService';
+import { useSuccessSound } from '../utils/useSuccessSound';
 
 type PaymentMethod = 'cash' | 'online' | 'account_cheque' | 'received_cheques';
 
@@ -54,23 +58,20 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const currency = useCurrency();
-    const [createdSlip, setCreatedSlip] = useState(null);
+    const [createdSlip, setCreatedSlip] = useState<PaymentResource | null>(null);
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
-
+    const [footerError, setFooterError] = useState<string | null>(null);
+    const {play} = useSuccessSound();
     const toastAnim = useRef(new Animated.Value(0)).current;
     let resetSwipe: (() => void) | null = null;
 
     const update = (fields: Partial<PaymentPayload>) =>
         setPayload((prev) => ({ ...prev, ...fields }));
 
-    const showToast = (message: string) => {
-        setToast(message);
-        toastAnim.setValue(0);
-        Animated.sequence([
-            Animated.spring(toastAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 12 }),
-            Animated.delay(3500),
-            Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => setToast(null));
+    const showError = (message: string) => {
+        setFooterError(message);
+        // Auto-clear after 4 s
+        setTimeout(() => setFooterError(null), 4000);
     };
 
     const validate = (): string[] => {
@@ -88,7 +89,7 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
         if (payload.type === 'account_cheque' && !payload.cheque_number?.trim())
             errs.push('Please enter a cheque number.');
 
-        if ( payload.type === 'account_cheque' && !payload.cheque_date)
+        if (payload.type === 'account_cheque' && !payload.cheque_date)
             errs.push('Please enter a cheque clearing date.');
 
         if (payload.type === 'received_cheques' && !payload.cheque)
@@ -101,7 +102,7 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
         if (loading) return;
         const errs = validate();
         if (errs.length > 0) {
-            showToast(errs[0]);
+            showError(errs[0]);
             resetSwipe?.();
             return;
         }
@@ -109,11 +110,12 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
             setLoading(true);
             const submitPayload = {
                 ...payload,
-                date: payload.date ? toDateString(payload.date) : undefined,
-                cheque_date: payload.cheque_date ? toDateString(payload.cheque_date) : undefined,
+                date: payload.date ? toDateString(payload.date as Date) : undefined,
+                cheque_date: payload.cheque_date ? toDateString(payload.cheque_date as Date) : undefined,
                 currency: currency,
             };
             const receipt = await createPaidPayment(submitPayload);
+            play();
             handleReceipt(receipt);
 
         } catch (error: any) {
@@ -127,7 +129,7 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
             } else {
                 apiErrors.push(error?.response?.data?.message ?? 'Something went wrong. Please try again.');
             }
-            showToast(apiErrors[0]);
+            showError(apiErrors[0]);
         } finally {
             setLoading(false);
             resetSwipe?.();
@@ -142,10 +144,19 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
         }, 400);  // 400ms matches the modal dismiss animation
     };
 
+
+
     const handleModalClosing = () => {
         setCreatedSlip(null);
         setReceiptModalVisible(false);
+        navigation.navigate('Home');
 
+    }
+
+    const handleAddNew = () => {
+        setCreatedSlip(null);
+        setReceiptModalVisible(false);
+        setPayload(INITIAL_PAYLOAD);
     }
 
     const ThumbIcon = () =>
@@ -156,14 +167,8 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
     return (
         <SafeAreaView style={styles.container}>
 
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="chevron-left" size={28} color={colors.gray900} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Pay Payment</Text>
-                <View style={styles.headerSpacer} />
-            </View>
+
+            <Header title="Pay Payment" navigation={navigation} />
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
@@ -190,6 +195,7 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
                         minSearchLength={2}
                         creatable={false}
                         label="Select Customer"
+                        value={payload.contact as unknown as Contact}
                         leadingIconName="person-search"
                         inputBg={colors.backgroundLight}
                         onSelect={(v) => update({ contact: v as unknown as Contact })}
@@ -200,6 +206,13 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
                 </ScrollView>
 
                 <View style={styles.footer}>
+                    {footerError ? (
+                        <FooterError
+                            setFooterError={setFooterError}
+                            footerError={footerError}
+                        />
+
+                    ) : null}
                     <SwipeButton
                         title={loading ? 'Processing...' : 'Slide to confirm'}
                         thumbIconComponent={ThumbIcon}
@@ -210,7 +223,7 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
                         thumbIconBorderColor={loading ? colors.gray400 : colors.danger}
                         titleColor={colors.dangerDark}
                         titleFontSize={15}
-                        height={64}
+                        height={52}
                         swipeSuccessThreshold={70}
                         disabled={loading}
                         onSwipeSuccess={checkOut}
@@ -230,6 +243,7 @@ const PayPaymentScreen: React.FC<Props> = ({ navigation }) => {
                         transaction={createdSlip}
                         visible={receiptModalVisible}
                         onClose={() => handleModalClosing()}
+                        onAddNew={() => handleAddNew()}
                     />
                 )}
 

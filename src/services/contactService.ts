@@ -50,8 +50,6 @@ export const fetchContacts = async (
 
     const response = await api.get('/contacts', { params });
 
-    console.log('📦 Raw API Response:', response.data);
-
     const responseData = response.data;
 
     // Handle Laravel pagination format
@@ -98,7 +96,6 @@ export const fetchContacts = async (
       },
     };
   } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
     throw error;
   }
 };
@@ -243,8 +240,6 @@ export const deleteContact = async (contactId: string) => {
  */
 export const bulkImportContacts = async (contacts: Partial<Contact>[]) => {
   try {
-    console.log('📥 Bulk importing contacts:', contacts.length);
-
     const response = await api.post('/contacts/bulk-import', { contacts });
 
     return {
@@ -269,8 +264,6 @@ export const bulkImportContacts = async (contacts: Partial<Contact>[]) => {
  */
 export const exportContacts = async (filters: ContactFilters = {}) => {
   try {
-    console.log('📤 Exporting contacts with filters:', filters);
-
     const params: any = {};
 
     if (filters.search) params.search = filters.search;
@@ -291,7 +284,6 @@ export const exportContacts = async (filters: ContactFilters = {}) => {
       data: response.data,
     };
   } catch (error: any) {
-    console.error('❌ Error exporting contacts:', error);
     return {
       success: false,
       error: error.response?.data?.message || 'Failed to export contacts',
@@ -305,8 +297,6 @@ export const exportContacts = async (filters: ContactFilters = {}) => {
  */
 export const getContactStats = async () => {
   try {
-    console.log('📊 Fetching contact statistics');
-
     const response = await api.get('/contacts/stats');
 
     return {
@@ -314,7 +304,6 @@ export const getContactStats = async () => {
       stats: response.data.data || response.data,
     };
   } catch (error: any) {
-    console.error('❌ Error fetching contact stats:', error);
     return {
       success: false,
       error: error.response?.data?.message || 'Failed to fetch statistics',
@@ -367,7 +356,6 @@ export const fetchCities = async (): Promise<City[]> => {
     const response = await api.get('/cities', {});
     return response.data.data;
   } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
     throw error;
   }
 };
@@ -382,7 +370,30 @@ export const fetchCategories = async (): Promise<ContactCategory[]> => {
     const response = await api.get('/search-contact-categories', {});
     return response.data.data;
   } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
+    throw error;
+  }
+};
+
+export const getLedgerHtml = async (
+  id: number,
+  filters?: any,
+): Promise<string> => {
+  try {
+    const response = await api.get(`/contact-ledger/${id}/html`, {
+      params: filters,
+      headers: { Accept: 'text/html' },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+export const createSyncContact = async (payload: any): Promise<any> => {
+  try {
+    const response = await api.post('/sync-contacts', payload);
+    return response.data;
+  } catch (error: any) {
     throw error;
   }
 };

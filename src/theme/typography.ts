@@ -1,7 +1,7 @@
 export const typography = {
   heading1: {
-    fontSize: 32,
-    fontWeight: '700' as const,
+    fontSize: 20,
+    fontWeight: '800' as const,
     letterSpacing: -0.5,
   },
   heading2: {

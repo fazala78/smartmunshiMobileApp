@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    KeyboardAvoidingView, ActivityIndicator, Animated, Platform, Image,
+    KeyboardAvoidingView, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -17,6 +17,8 @@ import AsyncDropdown from '../components/AsyncDropdown';
 import { createContact } from '../services/contactService';
 import useCurrency from '../utils/currency';
 import Header from '../components/ui/Header';
+import FooterError from '../components/common/FooterError';
+import { useSuccessSound } from '../utils/useSuccessSound';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,13 +53,14 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
 
     const [form,        setForm]        = useState<ContactForm>(INITIAL);
     const [loading,     setLoading]     = useState(false);
-    const [toast,       setToast]       = useState<string | null>(null);
     const [avatar,      setAvatar]      = useState<string | null>(null);
     const [success,     setSuccess]     = useState<SuccessResponse | null>(null);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [footerError, setFooterError] = useState<string | null>(null);
+    const {play} = useSuccessSound();
+    
 
     const currency  = useCurrency();
-    const toastAnim = useRef(new Animated.Value(0)).current;
     let   resetSwipe: (() => void) | null = null;
 
     // ── Helper ────────────────────────────────────────────────────────────────
@@ -65,14 +68,10 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
         setForm((prev) => ({ ...prev, ...fields }));
 
     // ── Toast ──────────────────────────────────────────────────────────────────
-    const showToast = (message: string) => {
-        setToast(message);
-        toastAnim.setValue(0);
-        Animated.sequence([
-            Animated.spring(toastAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 12 }),
-            Animated.delay(3500),
-            Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => setToast(null));
+    const showError = (message: string) => {
+          setFooterError(message);
+        // Auto-clear after 4 s
+        setTimeout(() => setFooterError(null), 4000);
     };
 
     // ── Validation ─────────────────────────────────────────────────────────────
@@ -101,13 +100,14 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
         if (loading) return;
         const errs = validate();
         if (errs.length > 0) {
-            showToast(errs[0]);
+            showError(errs[0]);
             resetSwipe?.();
             return;
         }
         try {
             setLoading(true);
             const response = await createContact({ ...form, currency });
+            play();
             setSuccess(response);
             setShowSuccess(true);
         } catch (error: any) {
@@ -120,7 +120,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
             } else {
                 apiErrors.push(error?.response?.data?.message ?? 'Something went wrong. Please try again.');
             }
-            showToast(apiErrors[0]);
+            showError(apiErrors[0]);
         } finally {
             setLoading(false);
             resetSwipe?.();
@@ -152,20 +152,6 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-                    {/* Toast */}
-                    {toast && (
-                        <Animated.View style={[styles.toast, {
-                            opacity: toastAnim,
-                            transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
-                        }]}>
-                            <Icon name="error-outline" size={16} color={colors.white} />
-                            <Text style={styles.toastText} numberOfLines={2}>{toast}</Text>
-                            <TouchableOpacity onPress={() => setToast(null)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                <Icon name="close" size={15} color="rgba(255,255,255,0.7)" />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
 
                     {/* ── Avatar ── */}
                     <View style={styles.avatarSection}>
@@ -296,6 +282,13 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
 
                 {/* ── Footer ── */}
                 <View style={styles.footer}>
+                      {footerError ? (
+                        <FooterError
+                            setFooterError={setFooterError}
+                            footerError={footerError}
+                        />
+
+                    ) : null}
                     <SwipeButton
                         title={loading ? 'Saving...' : 'Slide to Post'}
                         thumbIconComponent={ThumbIcon}
@@ -306,7 +299,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                         thumbIconBorderColor={colors.primary}
                         titleColor={colors.primary}
                         titleFontSize={13}
-                        height={60}
+                        height={52}
                         swipeSuccessThreshold={70}
                         disabled={loading}
                         onSwipeSuccess={handleSubmit}

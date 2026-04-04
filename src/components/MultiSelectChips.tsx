@@ -75,13 +75,7 @@ const styles = StyleSheet.create({
   filterSection: {
     marginBottom: 15,
   },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textPlaceholder,
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
+  filterLabel: { fontSize: 10, fontWeight: '800', color: colors.textPlaceholder, letterSpacing: 1.2, textTransform: 'uppercase',marginBottom:10 },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

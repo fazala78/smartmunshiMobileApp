@@ -1,12 +1,5 @@
-import { ContactForm } from '../types/contact';
 import { Inventory } from '../types/Inventory';
-import { PaymentPayload } from '../types/payments';
-import {
-  BankReceipt,
-  ExpenseSlip,
-  JournalSlip,
-  PaymentResource,
-} from '../types/receipt';
+import { InvoiceReceipt, JournalSlip } from '../types/receipt';
 import api from './api';
 /**
  * Fetch contacts with filters and pagination
@@ -18,69 +11,14 @@ import api from './api';
  * @param filters - Filter parameters for contacts
  * @returns Promise with paginated contacts data
  */
-export const getInvoice = async (type: string, id: number): Promise<any> => {
-  try {
-    const response = await api.get(type + '/' + id);
-    console.log('📦 Raw API Response:', response.data.data);
-    return response.data.data;
-  } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
-    throw error;
-  }
-};
-
-export const getReceipt = async (
+export const getInvoice = async (
   type: string,
   id: number,
-): Promise<PaymentResource> => {
+): Promise<InvoiceReceipt> => {
   try {
     const response = await api.get(type + '/' + id);
-    console.log('📦 Raw API Response:', response.data.data);
     return response.data.data;
   } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
-    throw error;
-  }
-};
-
-export const getExpense = async (
-  type: string,
-  id: number,
-): Promise<ExpenseSlip> => {
-  try {
-    const response = await api.get(type + '/' + id);
-    console.log('📦 Raw API Response:', response.data.data);
-    return response.data.data;
-  } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
-    throw error;
-  }
-};
-
-export const getJournalEntry = async (
-  type: string,
-  id: number,
-): Promise<JournalSlip> => {
-  try {
-    const response = await api.get(type + '/' + id);
-    console.log('📦 Raw API Response:', response.data.data);
-    return response.data.data;
-  } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
-    throw error;
-  }
-};
-
-export const getBankReceipt = async (
-  type: string,
-  id: number,
-): Promise<BankReceipt> => {
-  try {
-    const response = await api.get(type + '/' + id);
-    console.log('📦 Raw API Response:', response.data.data);
-    return response.data.data;
-  } catch (error: any) {
-    console.error('❌ Error fetching contacts:', error);
     throw error;
   }
 };
@@ -129,50 +67,15 @@ export const createPurchaseReturn = async (
   }
 };
 
-export const createReceivePayment = async (
-  payload: PaymentPayload,
-): Promise<PaymentResource> => {
+export const getTotalCash = async (): Promise<any> => {
   try {
-    const response = await api.post('/receive-payments', payload);
+    const response = await api.get<any>('/total-cash');
     return response.data;
   } catch (error: any) {
-    console.log('error');
-    throw error;
-  }
-};
-
-export const createPaidPayment = async (
-  payload: PaymentPayload,
-): Promise<PaymentResource> => {
-  try {
-    const response = await api.post('/pay-payments', payload);
-    return response.data;
-  } catch (error: any) {
-    console.log('error');
-    throw error;
-  }
-};
-
-export const createExpense = async (
-  payload: PaymentPayload,
-): Promise<PaymentResource> => {
-  try {
-    const response = await api.post('/expenses', payload);
-    return response.data;
-  } catch (error: any) {
-    console.log('error');
-    throw error;
-  }
-};
-
-export const createBankPayment = async (
-  payload: PaymentPayload,
-): Promise<PaymentResource> => {
-  try {
-    const response = await api.post('/bank-payment', payload);
-    return response.data;
-  } catch (error: any) {
-    console.log('error');
-    throw error;
+    throw (
+      error.response?.data || {
+        message: error.message || 'Failed to get journals',
+      }
+    );
   }
 };

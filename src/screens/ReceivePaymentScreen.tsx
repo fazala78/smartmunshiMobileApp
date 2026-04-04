@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    KeyboardAvoidingView, ActivityIndicator, Animated, Platform,
+    View, ScrollView, StyleSheet,
+    KeyboardAvoidingView, ActivityIndicator, Platform,
     Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,14 +10,18 @@ import SwipeButton from 'rn-swipe-button';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
-import { createReceivePayment } from '../services/transactionService';
 import { PaymentPayload } from '../types/payments';
 import PaymentMethods from '../components/PaymentMethods';
 import AsyncDropdown from '../components/AsyncDropdown';
-import { Contact } from '../types/payments';
 import useCurrency from '../utils/currency';
 import { toDateString } from '../utils/stringUtils';
 import PaymentReceipt from './modals/PaymentReceipt';
+import Header from '../components/ui/Header';
+import FooterError from '../components/common/FooterError';
+import { PaymentResource } from '../types/receipt';
+import { createReceivePayment } from '../services/paymentService';
+import { Contact } from '../types/contact';
+import { useSuccessSound } from '../utils/useSuccessSound';
 
 type PaymentMethod = 'cash' | 'online' | 'cheque';
 
@@ -51,25 +55,20 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
 
     const [payload, setPayload] = useState<PaymentPayload>(INITIAL_PAYLOAD);
     const [loading, setLoading] = useState(false);
-    const [toast, setToast] = useState<string | null>(null);
     const currency = useCurrency();
-    const [createdSlip, setCreatedSlip] = useState(null);
+    const [createdSlip, setCreatedSlip] = useState<PaymentResource | null>(null);
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
-
-    const toastAnim = useRef(new Animated.Value(0)).current;
+    const [footerError, setFooterError] = useState<string | null>(null);
+    const {play} = useSuccessSound();
     let resetSwipe: (() => void) | null = null;
 
     const update = (fields: Partial<PaymentPayload>) =>
         setPayload((prev) => ({ ...prev, ...fields }));
 
-    const showToast = (message: string) => {
-        setToast(message);
-        toastAnim.setValue(0);
-        Animated.sequence([
-            Animated.spring(toastAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 12 }),
-            Animated.delay(3500),
-            Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => setToast(null));
+    const showError = (message: string) => {
+          setFooterError(message);
+        // Auto-clear after 4 s
+        setTimeout(() => setFooterError(null), 4000);
     };
 
     const validate = (): string[] => {
@@ -78,7 +77,7 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
             errs.push('Please select a customer.');
         if (!payload.amount || payload.amount <= 0)
             errs.push('Please enter a valid amount.');
-          if (!payload.date)
+        if (!payload.date)
             errs.push('Please select the date.');
         if (payload.type === 'online' && !payload.account)
             errs.push('Please select a bank account.');
@@ -91,21 +90,22 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
 
     const checkOut = async () => {
         if (loading) return;
-         const errs = validate();
-         if (errs.length > 0) {
-             showToast(errs[0]);
-             resetSwipe?.();
-             return;
-         }
+        const errs = validate();
+        if (errs.length > 0) {
+            showError(errs[0]);
+            resetSwipe?.();
+            return;
+        }
         try {
             setLoading(true);
             const submitPayload = {
                 ...payload,
-                date: payload.date ? toDateString(payload.date) : undefined,
-                cheque_date: payload.cheque_date ? toDateString(payload.cheque_date) : undefined,
+                date: payload.date ? toDateString(payload.date as Date) : undefined,
+                cheque_date: payload.cheque_date ? toDateString(payload.cheque_date as Date) : undefined,
                 currency: currency,
             };
             const receipt = await createReceivePayment(submitPayload);
+            play();
             handleReceipt(receipt);
 
         } catch (error: any) {
@@ -118,14 +118,14 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
             } else {
                 apiErrors.push(error?.response?.data?.message ?? 'Something went wrong. Please try again.');
             }
-            showToast(apiErrors[0]);
+            showError(apiErrors[0]);
         } finally {
             setLoading(false);
-             resetSwipe?.();
+            resetSwipe?.();
         }
     };
 
-    const handleReceipt = (receipt: any) => {
+    const handleReceipt = (receipt: PaymentResource) => {
         setCreatedSlip(receipt);
         // Wait for CheckoutModal slide-down animation to finish
         setTimeout(() => {
@@ -136,10 +136,19 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
     const handleModalClosing = () => {
         setCreatedSlip(null);
         setReceiptModalVisible(false);
-        
+        navigation.navigate('Home');
+
     }
 
+     const handleAddNew = () => {
+        setCreatedSlip(null);
+        setReceiptModalVisible(false);
+        setPayload(INITIAL_PAYLOAD);
+    }
+    
 
+
+    // eslint-disable-next-line react/no-unstable-nested-components
     const ThumbIcon = () =>
         loading
             ? <ActivityIndicator size="small" color={colors.white} />
@@ -148,40 +157,21 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
     return (
         <SafeAreaView style={styles.container}>
 
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="chevron-left" size={28} color={colors.gray900} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Pay Payment</Text>
-                <View style={styles.headerSpacer} />
-            </View>
+            <Header title="Receive Payment" navigation={navigation} />
+
+
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-
-                    {/* Toast */}
-                    {toast && (
-                        <Animated.View style={[styles.toast, {
-                            opacity: toastAnim,
-                            transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
-                        }]}>
-                            <Icon name="error-outline" size={16} color={colors.white} />
-                            <Text style={styles.toastText} numberOfLines={2}>{toast}</Text>
-                            <TouchableOpacity onPress={() => setToast(null)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                <Icon name="close" size={15} color="rgba(255,255,255,0.7)" />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
                     {/* Contact */}
                     <AsyncDropdown
                         url="/search-contact"
                         searchParam="q"
-                        minSearchLength={2}
+                        minSearchLength={3}
                         creatable={false}
                         label="Select Customer"
+                        value={payload.contact as unknown as Contact}
                         leadingIconName="person-search"
                         inputBg={colors.backgroundLight}
                         onSelect={(v) => update({ contact: v as unknown as Contact })}
@@ -192,6 +182,13 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
                 </ScrollView>
 
                 <View style={styles.footer}>
+                    {footerError ? (
+                        <FooterError
+                            setFooterError={setFooterError}
+                            footerError={footerError}
+                        />
+
+                    ) : null}
                     <SwipeButton
                         title={loading ? 'Processing...' : 'Slide to confirm'}
                         thumbIconComponent={ThumbIcon}
@@ -202,7 +199,7 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
                         thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
                         titleColor={colors.primaryDark}
                         titleFontSize={15}
-                        height={64}
+                        height={52}
                         swipeSuccessThreshold={70}
                         disabled={loading}
                         onSwipeSuccess={checkOut}
@@ -222,6 +219,7 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
                         transaction={createdSlip}
                         visible={receiptModalVisible}
                         onClose={() => handleModalClosing()}
+                        onAddNew={() => handleAddNew()}
                     />
                 )}
 

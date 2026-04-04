@@ -80,6 +80,9 @@ export const colors = {
   shadowLg: 'rgba(0,0,0,0.20)',
 
   featured: '#13ec5b',
+
+  purple: '#7c3aed',
+  purpleLight: '#f3e8ff',
 };
 
 export type AppColors = typeof colors;

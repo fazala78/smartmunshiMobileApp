@@ -15,6 +15,8 @@ import { CategoriesType, ProductFormData, unitsType } from '../types/Product';
 import { createProduct } from '../services/ProductService';
 import SuccessModal, { SuccessResponse } from './modals/SuccessModal';
 import Header from '../components/ui/Header';
+import FooterError from '../components/common/FooterError';
+import { useSuccessSound } from '../utils/useSuccessSound';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,9 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     const [photo, setPhoto] = useState<string | null>(null);
     const [success, setSuccess] = useState<SuccessResponse | null>(null);
     const [showSuccess, setShowSuccess] = useState(false);
+        const [footerError, setFooterError] = useState<string | null>(null);
+        const {play} = useSuccessSound();
+    
 
     const toastAnim = useRef(new Animated.Value(0)).current;
     let resetSwipe: (() => void) | null = null;
@@ -61,14 +66,10 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         setForm((prev) => ({ ...prev, ...fields }));
 
     // ── Toast ──────────────────────────────────────────────────────────────────
-    const showToast = (message: string) => {
-        setToast(message);
-        toastAnim.setValue(0);
-        Animated.sequence([
-            Animated.spring(toastAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 12 }),
-            Animated.delay(3500),
-            Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => setToast(null));
+    const showError = (message: string) => {
+          setFooterError(message);
+        // Auto-clear after 4 s
+        setTimeout(() => setFooterError(null), 4000);
     };
 
     const handleAddAnother = () => {
@@ -99,7 +100,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         if (loading) return;
          const errs = validate();
          if (errs.length > 0) {
-             showToast(errs[0]);
+             showError(errs[0]);
              resetSwipe?.();
              return;
          } 
@@ -107,6 +108,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         try {
             setLoading(true);
             const response = await createProduct(form);
+            play();
             setSuccess(response);
             setShowSuccess(true);
             // navigation.goBack();
@@ -121,7 +123,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
             } else {
                 apiErrors.push(error?.response?.data?.message ?? 'Something went wrong. Please try again.');
             }
-            showToast(apiErrors[0]);
+            showError(apiErrors[0]);
         } finally {
             setLoading(false);
             resetSwipe?.();
@@ -294,7 +296,13 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
 
                 {/* ── Footer ── */}
                 <View style={styles.footer}>
-                   
+                    {footerError ? (
+                        <FooterError
+                            setFooterError={setFooterError}
+                            footerError={footerError}
+                        />
+
+                    ) : null}
                      <SwipeButton
                                   title={loading ? 'Processing...' : 'Slide to Save Product'}
                                   thumbIconComponent={ThumbIcon}
@@ -305,7 +313,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                   thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
                                   titleColor={colors.backgroundDark}
                                   titleFontSize={15}
-                                  height={64}
+                                  height={52}
                                   swipeSuccessThreshold={70}
                                   disabled={loading}
                                   onSwipeSuccess={handleSubmit}

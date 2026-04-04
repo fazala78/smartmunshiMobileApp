@@ -23,4 +23,10 @@ export type RootStackParamList = {
   AddContact: undefined;
   AddProduct: undefined;
   ChequeList: undefined;
+  JournalEntry: undefined;
+  inventoryTransaction: { item: any };
+  receivePaymentList: { item: any };
+  bankPayments: { item: any };
+  expensePayment: { item: any };
+  dailyCashReport: undefined;
 };

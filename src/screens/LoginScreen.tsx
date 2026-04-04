@@ -25,7 +25,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [tenantName, setTenantName] = useState<string>('');
-//  const [error, setError] = useState<string>('');
+  //  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     loadTenantInfo();
@@ -37,10 +37,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       if (tenantData) {
         const tenant = JSON.parse(tenantData);
         setTenantName(tenant.name || tenant.id);
-        console.log('📦 Tenant loaded:', tenant);
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
-      console.error('❌ Error loading tenant:', error);
     }
   };
 
@@ -58,18 +57,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('🔄 Changing tenant...');
 
               // Clear tenant data
               await AsyncStorage.removeItem('tenant');
               await AsyncStorage.removeItem('tenantKey');
 
-              console.log('✅ Tenant data cleared');
 
               // Navigate back to tenant verification
               navigation.replace('TenantVerification');
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
             } catch (error) {
-              console.error('❌ Error changing tenant:', error);
               Alert.alert('Error', 'Failed to change tenant');
             }
           }
@@ -84,9 +81,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    console.log('\n🔐 === LOGIN ATTEMPT ===');
-    console.log('Email:', email);
-    console.log('Tenant:', tenantName);
 
     setLoading(true);
     try {
@@ -95,8 +89,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         password: password,
       });
 
-      console.log('✅ Login Response:', response.data);
-
       if (response.data.success) {
         // Create masked email (e.g., "u***r@example.com")
         const maskEmail = (email: string) => {
@@ -104,9 +96,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           const maskedLocal = local[0] + '***' + local[local.length - 1];
           return `${maskedLocal}@${domain}`;
         };
-
-        console.log('📱 Navigating to OTP Verification');
-
         // Navigate to OTP screen with email params
         navigation.replace('OTPVerification', {
           email: email.trim(),
@@ -114,20 +103,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           expire: response.data.expire,
         });
       } else {
-        console.error('❌ Invalid response structure:', response.data);
         Alert.alert('Error', 'Invalid response from server');
       }
 
     } catch (error: any) {
-      console.error('\n❌ === LOGIN ERROR ===');
-      console.error('Error Type:', error.constructor?.name);
-      console.error('Error Message:', error.message);
 
       let errorMessage = 'Login failed. Please try again.';
 
       if (error.response) {
-        console.error('Response Status:', error.response.status);
-        console.error('Response Data:', error.response.data);
 
         if (error.response.status === 401) {
           errorMessage = error.response.data?.message || 'Invalid email or password';
@@ -144,18 +127,18 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           errorMessage = error.response.data.message;
         }
       } else if (error.request) {
-        console.error('📡 No Response Received');
+
         errorMessage = 'Network error. Please check your connection.';
       } else {
-        console.error('⚠️ Unknown error:', error);
+
         errorMessage = error.message || 'An unexpected error occurred';
       }
 
-      console.error('Showing error:', errorMessage);
+
       Alert.alert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
-      console.log('=== LOGIN ATTEMPT COMPLETE ===\n');
+
     }
   };
 
@@ -186,7 +169,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             value={email}
             onChangeText={(text: React.SetStateAction<string>) => {
               setEmail(text);
-           //   setError(''); // Clear error on input
+              //   setError(''); // Clear error on input
             }}
             placeholder="email@abc.com"
             icon="email"
@@ -201,7 +184,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             value={password}
             onChangeText={(text: React.SetStateAction<string>) => {
               setPassword(text);
-            //  setError(''); // Clear error on input
+              //  setError(''); // Clear error on input
             }}
             placeholder="Password"
             icon="password"

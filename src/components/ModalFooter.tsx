@@ -1,37 +1,43 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet,Platform
- } from 'react-native';
+import {
+  View, Text, TouchableOpacity, StyleSheet, Platform
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+interface ModalFooterProps {
+  onClose: () => void;
+  onAddNew:() => void;
+}
+
+const ModalFooter: React.FC<ModalFooterProps> = ({ onClose,onAddNew }) => {
+  return (
+    <View style={styles.footer}>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          activeOpacity={0.7}
+          onPress={() => {
+            onAddNew();
+          }}>
+          <Icon name="add-circle" size={20} color="#111813" />
+          <Text style={styles.actionButtonText}>Add New</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionButton}
+          activeOpacity={0.7}
+          onPress={onClose}
+        >
+          <Icon name="cancel" size={20} color="#111813" />
+          <Text style={styles.actionButtonText}>Close</Text>
+        </TouchableOpacity>
+      </View>
 
 
-
-const ModalFooter: React.FC = () => {
-    return (
-              <View style={styles.footer}>
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    activeOpacity={0.7}
-                  >
-                    <Icon name="share" size={20} color="#111813" />
-                    <Text style={styles.actionButtonText}>Share</Text>
-                  </TouchableOpacity>
-      
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    activeOpacity={0.7}
-                  >
-                    <Icon name="picture-as-pdf" size={20} color="#111813" />
-                    <Text style={styles.actionButtonText}>PDF</Text>
-                  </TouchableOpacity>
-                </View>
-      
-               
-              </View>
-    );
+    </View>
+  );
 };
 const styles = StyleSheet.create({
-     // Footer
+  // Footer
   footer: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
@@ -54,7 +60,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
-   
+
   },
   actionButton: {
     flex: 1,

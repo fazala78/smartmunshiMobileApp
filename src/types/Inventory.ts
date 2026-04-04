@@ -21,7 +21,7 @@ export interface Inventory {
   option_id: number | null;
   //process: Process | null;
   due_date: Date | null;
-  date: Date;
+  date: Date | string;
 }
 
 export interface Cart {
@@ -36,6 +36,7 @@ export interface Cart {
   asset_id: null | number;
   status: string;
   discount: null | number;
+  subtotal?: number;
   quantity: number;
   bags?: number | null;
   quantity_meta?: Meta[];
@@ -230,4 +231,36 @@ export interface ChequeTransication {
   date: string;
   debit_amount: number;
   credit_amount: number;
+}
+
+export interface InventoryTransaction {
+  transaction_id: number;
+  invoice_number: string;
+  contact: string;
+  amount: number;
+  payment_status?: 'paid' | 'unpaid' | 'partial';
+  date: string;
+  route: string;
+  class: string;
+  payments: TransactionPayment[];
+  sale_return: TransactionSaleReturn;
+}
+
+export interface TransactionPayment {
+  id: number;
+  name: string;
+  amount: number;
+  payment_method: string;
+  is_delete: boolean;
+}
+
+export interface TransactionSaleReturn {
+  id: number;
+  amount: string;
+  is_delete: boolean;
+}
+
+export interface DeletePayload {
+  payments: TransactionPayment[];
+  sale_return: TransactionSaleReturn | null;
 }

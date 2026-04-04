@@ -10,7 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { getJournalEntry } from '../../services/transactionService';
 import Loading from '../../components/common/Loading';
 import Error from '../../components/common/Error';
 import { useQuery } from '@tanstack/react-query';
@@ -18,6 +17,9 @@ import { colors } from '../../theme';
 import { formatBalance } from '../../utils/currency';
 import ModalHeader from '../../components/ModalHeader';
 import ModalFooter from '../../components/ModalFooter';
+import { fetchJournalEntry, getJournalEntry } from '../../services/journalEntryService';
+import { sharePDF } from '../../services/shareService';
+import { iosSharePDF } from '../../services/iosShareService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,12 +34,14 @@ interface JournalEntryReceiptProps {
   visible: boolean;
    onClose: () => void;
    transaction: TrItem;
+   onAddNew: () => void;
 }
 
 const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
   visible,
   onClose,
   transaction,
+  onAddNew,
 }) => {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -81,9 +85,7 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
     }
   }, [visible, slideAnim, opacityAnim, scaleAnim]);
 
-  if (!visible) {
-    return null;
-  }
+ 
 
     // Fetch transaction details
   const {
@@ -103,6 +105,25 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
     staleTime: 30 * 1000,
     enabled: visible,// && !!transaction?.id,
   });
+
+   const { data: htmlData } = useQuery({
+      queryKey: ['journalHtml', transaction?.transaction_id],
+      queryFn: async () => fetchJournalEntry(transaction.transaction_id),
+      staleTime: 30 * 1000,
+      enabled: visible,
+    });
+
+  if (!visible) {
+    return null;
+  }
+    const handlePrint = async () => {
+           if (!htmlData) return;
+            if (Platform.OS === 'android') {
+               await sharePDF(htmlData, data?.title as string);
+            }else{
+                await iosSharePDF(htmlData, data?.title as string);
+            }
+         };
 
   return (
     <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
@@ -134,7 +155,11 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
         )}
        {!isLoading && !isError && data && (
          <>
-          <ModalHeader title={data?.title} onClose={onClose} />
+         <ModalHeader
+              title={data.title}
+              onClose={onClose}
+              onShare={handlePrint}
+            />
         <ScrollView
           showsVerticalScrollIndicator={false}
           bounces={false}
@@ -178,8 +203,7 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
               <Text style={styles.detailValue}>{data.reference}</Text>
             </View>
 
-            {/* Divider */}
-            <View style={styles.divider} />
+          
 
             {/* Journal Details Section */}
             <View style={styles.journalSection}>
@@ -249,7 +273,6 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
             {/* Remarks Section (if available) */}
             {data.remarks && (
               <>
-                <View style={styles.divider} />
                 <View style={styles.remarksSection}>
                   <Text style={styles.remarksTitle}>REMARKS</Text>
                   <Text style={styles.remarksText}>{data.remarks}</Text>
@@ -262,7 +285,7 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
        )}
 
         {/* Footer Actions */}
-       <ModalFooter/>
+     <ModalFooter onClose={onClose} onAddNew={onAddNew}/>
 
         {/* Bottom Indicator */}
         <View style={styles.bottomSpace} />
@@ -386,13 +409,6 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
 
-  // Divider
-  divider: {
-    borderTopWidth: 2,
-    borderTopColor: '#e5e7eb',
-    borderStyle: 'dashed',
-    marginVertical: 8,
-  },
 
   // Journal Details Section
   journalSection: {

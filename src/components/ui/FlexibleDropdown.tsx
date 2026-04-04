@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, LogBox } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import api from '../../services/api';
 import { colors } from '../../theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
+
 
 export interface DropdownItem {
   label: string;

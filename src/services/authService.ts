@@ -52,3 +52,12 @@ export const refreshToken = async (): Promise<LoginResponse> => {
     );
   }
 };
+
+export const getConfiguration = async (): Promise<any> => {
+  try {
+    const response = await api.get('/configuration', {});
+    return response.data;
+  } catch (error: any) {
+    throw error;
+  }
+};

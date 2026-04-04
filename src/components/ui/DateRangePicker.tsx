@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { DatePickerModal, registerTranslation, en } from 'react-native-paper-dates';
@@ -48,6 +48,10 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
     endDate: endDate,
   });
 
+   useEffect(() => {
+        setRange({ startDate, endDate });
+    }, [startDate, endDate]);
+
   const onDismiss = useCallback(() => {
     setVisible(false);
   }, []);
@@ -86,9 +90,6 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
      <Text style={styles.label}>{label}</Text>
      <PaperProvider theme={customTheme}>
       <View style={styles.container}>
-        {/* Label */}
-        <Text style={styles.label}>{label}</Text>
-
         {/* Date Range Display */}
         <TouchableOpacity
           style={[styles.input, hasValue && styles.inputFilled]}
@@ -149,28 +150,22 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
+  label:  { fontSize: 10, fontWeight: '700', color: '#61896f', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom:10 },
   input: {
     height: 48,
-    backgroundColor: '#f6f8f6',
+    backgroundColor: colors.backgroundLight,
     borderRadius: 12,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.gray200,
+    
   },
   inputFilled: {
     backgroundColor: 'rgba(19, 236, 91, 0.05)',
-    borderColor: '#13ec5b',
+    borderColor: colors.primary,
   },
   inputContent: {
     flexDirection: 'row',

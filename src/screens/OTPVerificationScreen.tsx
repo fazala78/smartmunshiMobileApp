@@ -44,13 +44,11 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
 
   // Handle back button press
   const handleBackPress = useCallback(() => {
-    console.log('Back button pressed');
 
     // Check if we can go back in the navigation stack
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      console.log('Cannot go back, navigating to Login screen');
       // Navigate to a fallback screen instead of going back
       navigation.replace('Login');
     }
@@ -66,20 +64,15 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
 
       // Validate date
       if (isNaN(expireDate.getTime())) {
-        console.error('Invalid expire time format:', expireTime);
         return 30; // Default 30 seconds
       }
 
       const diffInSeconds = Math.floor((expireDate.getTime() - now.getTime()) / 1000);
-      console.log('Time calculation:');
-      console.log('Now:', now.toISOString());
-      console.log('Expire:', expireDate.toISOString());
-      console.log('Difference seconds:', diffInSeconds);
 
       // Ensure we don't return negative values
       return Math.max(0, diffInSeconds);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
-      console.error('Error calculating remaining time:', error);
       return 30; // Default 30 seconds on error
     }
   }, [expireTime]);
@@ -87,15 +80,7 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
   // Initialize timer once on mount
   useEffect(() => {
     if (timerInitialized.current) return;
-
-    console.log('OTP Verification Screen mounted');
-    console.log('Email:', email);
-    console.log('Masked Email:', maskedEmail);
-    console.log('Expire Time:', expireTime);
-
     const initialTime = calculateRemainingTime();
-    console.log('Initializing timer with:', initialTime, 'seconds');
-
     setRemainingTime(initialTime);
     setIsCodeExpired(initialTime <= 0);
     setCanResend(initialTime <= 0);
@@ -111,31 +96,25 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
 
   // Timer effect - countdown
   useEffect(() => {
-    console.log('Timer effect running, remainingTime:', remainingTime, 'timerInitialized:', timerInitialized.current);
 
     if (remainingTime === -1 || !timerInitialized.current) {
-      console.log('Timer not initialized yet, skipping');
       return;
     }
 
     if (remainingTime <= 0) {
-      console.log('Setting code as expired');
       setIsCodeExpired(true);
       setCanResend(true);
       return;
     }
 
-    console.log('Setting up timer for', remainingTime, 'seconds');
     const timer = setTimeout(() => {
       setRemainingTime(prev => {
         const newTime = prev - 1;
-        console.log('Timer tick, new time:', newTime);
         return newTime;
       });
     }, 1000);
 
     return () => {
-      console.log('Clearing timer');
       clearTimeout(timer);
     };
   }, [remainingTime]);
@@ -189,8 +168,6 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
         otp: otpCode,
       });
       if (response.data.success) {
-        console.log('otp resposn');
-        console.log(response.data);
         // Save token if provided
         if (response.data.token) {
           await AsyncStorage.setItem('authToken', response.data.token);
@@ -206,22 +183,8 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
 
         // Clear temporary user data
         await AsyncStorage.removeItem('tempUser');
-
-        Alert.alert(
-          'Success',
-          'Verification successful!',
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                console.log('📱 Navigating to Home');
-                navigation.replace('Home');
-              }
-            }
-          ]
-        );
+        navigation.replace('Home');
       } else {
-        console.error('❌ Verification failed:', response.data);
         Alert.alert('Error', response.data.message || 'Verification failed');
         setOtp(['', '', '', '', '', '']);
         setTimeout(() => {
@@ -230,14 +193,10 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
       }
 
     } catch (error: any) {
-      console.error('\n❌ === OTP VERIFICATION ERROR ===');
-      console.error('Error:', error);
 
       let errorMessage = 'Verification failed. Please try again.';
 
       if (error.response) {
-        console.error('Response Status:', error.response.status);
-        console.error('Response Data:', error.response.data);
 
         if (error.response.status === 401 || error.response.status === 400) {
           errorMessage = error.response.data?.message || 'Invalid verification code';
@@ -252,7 +211,6 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
           errorMessage = error.response.data.message;
         }
       } else if (error.request) {
-        console.error('📡 No Response Received');
         errorMessage = 'Network error. Please check your connection.';
       }
 
@@ -265,7 +223,6 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
 
     } finally {
       setLoading(false);
-      console.log('=== OTP VERIFICATION COMPLETE ===\n');
     }
   };
 
@@ -308,13 +265,10 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
       }
 
     } catch (error: any) {
-      console.error('❌ Resend Error:', error);
 
       let errorMessage = 'Failed to resend code. Please try again.';
 
       if (error.response) {
-        console.error('Response Status:', error.response.status);
-        console.error('Response Data:', error.response.data);
 
         if (error.response.status === 429) {
           errorMessage = 'Too many requests. Please wait before trying again.';

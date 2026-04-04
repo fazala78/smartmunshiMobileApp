@@ -65,7 +65,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
               <Text style={styles.btnSecondaryText}>{closeLabel}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.btnPrimary} onPress={handleDone} activeOpacity={0.8}>
-              <Icon name="arrow-forward" size={16} color={colors.backgroundDark} />
+              <Icon name="arrow-forward" size={16} color={colors.white} />
               <Text style={styles.btnPrimaryText}>{doneLabel}</Text>
             </TouchableOpacity>
           </View>
@@ -83,11 +83,11 @@ const styles = StyleSheet.create({
   overlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   card:           { width: '100%', backgroundColor: colors.white, borderRadius: 28, padding: 28, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 16 },
   iconWrap:       { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.primaryMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  title:          { fontSize: 22, fontWeight: '900', color: colors.gray900, letterSpacing: -0.5, marginBottom: 8 },
+  title:          { fontSize: 22, fontWeight: '900', color: colors.gray900, letterSpacing: -0.5, marginBottom: 8,textAlign:'center' },
   message:        { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
   actions:        { flexDirection: 'row', gap: 12, width: '100%' },
   btnSecondary:   { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 2, borderColor: colors.gray200, alignItems: 'center' },
   btnSecondaryText:{ fontSize: 14, fontWeight: '800', color: colors.gray600 },
   btnPrimary:     { flex: 1, flexDirection: 'row', paddingVertical: 14, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  btnPrimaryText: { fontSize: 14, fontWeight: '800', color: colors.backgroundDark },
+  btnPrimaryText: { fontSize: 14, fontWeight: '800', color: colors.white },
 });

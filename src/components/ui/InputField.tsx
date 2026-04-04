@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,44 +8,40 @@ import {
   KeyboardTypeOptions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { colors } from '../../theme';
+import { colors, typography } from '../../theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FieldType = 'text' | 'number' | 'decimal' | 'email' | 'phone' | 'password';
 
 export interface InputFieldProps {
-  // Value
-  value:            string | number | null | undefined;
-  onChangeText:     (value: string) => void;
+  value:             string | number | null | undefined;
+  onChangeText:      (value: string) => void;
 
-  // Appearance
-  /** 'gray' — renders on a gray background (white input, no border)
-   *  'white' — renders on a white background (gray input, no border)
+  /** 'gray' — renders on a gray background (white input)
+   *  'white' — renders on a white background (gray input)
    *  Default: 'white' */
-  bg?:              'gray' | 'white';
-  type?:            FieldType;
-  label?:           string;
-  placeholder?:     string;
-  icon?:            string;               // MaterialIcons name
-  iconRight?:       string;
+  bg?:               'gray' | 'white';
+  type?:             FieldType;
+  label?:            string;
+  placeholder?:      string;
+  icon?:             string;
+  iconRight?:        string;
   onIconRightPress?: () => void;
 
-  // State
-  disabled?:        boolean;
-  error?:           string;
-  hint?:            string;
+  disabled?:         boolean;
+  error?:            string;
+  hint?:             string;
 
-  // Input behaviour
-  multiline?:       boolean;
-  numberOfLines?:   number;
-  maxLength?:       number;
-  autoCapitalize?:  'none' | 'sentences' | 'words' | 'characters';
-  returnKeyType?:   'done' | 'next' | 'search' | 'go' | 'send';
-  onSubmitEditing?: () => void;
-  onFocus?:         () => void;
-  onBlur?:          () => void;
-  textAlign?: 'left' | 'center' | 'right';
+  multiline?:        boolean;
+  numberOfLines?:    number;
+  maxLength?:        number;
+  autoCapitalize?:   'none' | 'sentences' | 'words' | 'characters';
+  returnKeyType?:    'done' | 'next' | 'search' | 'go' | 'send';
+  onSubmitEditing?:  () => void;
+  onFocus?:          () => void;
+  onBlur?:           () => void;
+  textAlign?:        'left' | 'center' | 'right';
 }
 
 // ─── Keyboard type map ────────────────────────────────────────────────────────
@@ -64,56 +60,79 @@ const KEYBOARD_MAP: Record<FieldType, KeyboardTypeOptions> = {
 const InputField: React.FC<InputFieldProps> = ({
   value,
   onChangeText,
-  bg            = 'white',
-  type          = 'text',
+  bg             = 'white',
+  type           = 'text',
   label,
   placeholder,
   icon,
   iconRight,
   onIconRightPress,
-  disabled      = false,
+  disabled       = false,
   error,
   hint,
-  multiline     = false,
-  numberOfLines = 1,
+  multiline      = false,
+  numberOfLines  = 1,
   maxLength,
   autoCapitalize,
-  returnKeyType = 'done',
-  textAlign = 'left',
+  returnKeyType  = 'done',
+  textAlign      = 'left',
   onSubmitEditing,
   onFocus,
   onBlur,
 }) => {
-  const [focused,         setFocused]         = useState(false);
-  const [secureVisible,   setSecureVisible]   = useState(false);
+  const [focused,       setFocused]       = useState(false);
+  const [secureVisible, setSecureVisible] = useState(false);
 
-  const isPassword  = type === 'password';
-  const isNumber    = type === 'number' || type === 'decimal';
+  // ── Ref — lets the wrapper TouchableOpacity programmatically focus ─────────
+  const inputRef = useRef<TextInput>(null);
+
+  const isPassword   = type === 'password';
+  const isNumber     = type === 'number' || type === 'decimal';
   const displayValue = value != null ? String(value) : '';
 
-  // ── Theming — gray parent → white input | white parent → gray input ────────
-  const inputBg      = bg === 'gray' ? colors.white : colors.backgroundLight;
-  
-  const borderColor  = bg === 'gray'
-    ? focused ? colors.borderFocus : colors.gray200   // on gray: white bg, brand border on focus only
-    : focused ? colors.borderFocus : colors.gray200 ;  // on white: gray bg, brand border on focus only
-  const borderWidth  = focused ? 1.5 : 1.5;
+  // ── Theming ────────────────────────────────────────────────────────────────
+  const inputBg     = bg === 'gray' ? colors.white : colors.backgroundLight;
+  const borderColor = focused ? colors.borderFocus : colors.gray200;
+  const borderWidth = 1.5;
+  const hasError    = !!error;
 
-  const hasError = !!error;
+  /**
+   * FIX: Called when the user taps the wrapper row — icon, padding, label area.
+   * Focuses the hidden TextInput so the keyboard opens immediately.
+   * The 50 ms delay gives RN time to register the touch before focusing.
+   */
+  const handleRowPress = () => {
+    if (disabled) return;
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={styles.wrapper}>
 
-      {/* Label */}
+      {/* Label — tapping it also focuses the input */}
       {!!label && (
-        <Text style={[styles.label, disabled && styles.labelDisabled]}>
-          {label}
-        </Text>
+        <TouchableOpacity onPress={handleRowPress} activeOpacity={1}>
+          <Text style={[styles.label, disabled && styles.labelDisabled]}>
+            {label}
+          </Text>
+        </TouchableOpacity>
       )}
 
-      {/* Input box */}
-      <View
+      {/*
+       * FIX: inputBox is now a TouchableOpacity instead of a plain View.
+       *
+       * Tapping the left icon, right icon area, or any horizontal padding
+       * gap now all route to handleRowPress → inputRef.current?.focus().
+       *
+       * accessible={false}  — prevents VoiceOver announcing a redundant
+       *   "button" on top of the already-accessible TextInput.
+       * activeOpacity={0.9} — subtle press feedback on the whole row.
+       *
+       * Inner buttons (password toggle, iconRight) use activeOpacity={1}
+       * so only the outer wrapper dims on press — no double-dim.
+       */}
+      <TouchableOpacity
         style={[
           styles.inputBox,
           { backgroundColor: inputBg, borderColor, borderWidth },
@@ -121,6 +140,9 @@ const InputField: React.FC<InputFieldProps> = ({
           disabled  && styles.inputBoxDisabled,
           multiline && { alignItems: 'flex-start', paddingVertical: 10 },
         ]}
+        onPress={handleRowPress}
+        activeOpacity={0.9}
+        accessible={false}
       >
         {/* Left icon */}
         {!!icon && (
@@ -134,12 +156,13 @@ const InputField: React.FC<InputFieldProps> = ({
 
         {/* Text input */}
         <TextInput
+          ref={inputRef}
           style={[
             styles.input,
-            isNumber    && styles.inputNumber,
-            multiline   && { minHeight: numberOfLines * 22, textAlignVertical: 'top' },
-            disabled    && styles.inputDisabled,
-             textAlign && { textAlign },
+            isNumber  && styles.inputNumber,
+            multiline && { minHeight: numberOfLines * 22, textAlignVertical: 'top' },
+            disabled  && styles.inputDisabled,
+            { textAlign },
           ]}
           value={displayValue}
           onChangeText={onChangeText}
@@ -147,7 +170,9 @@ const InputField: React.FC<InputFieldProps> = ({
           placeholderTextColor={colors.gray400}
           keyboardType={KEYBOARD_MAP[type]}
           secureTextEntry={isPassword && !secureVisible}
-          autoCapitalize={autoCapitalize ?? (type === 'email' ? 'none' : isNumber ? 'none' : 'sentences')}
+          autoCapitalize={
+            autoCapitalize ?? (type === 'email' ? 'none' : isNumber ? 'none' : 'sentences')
+          }
           autoCorrect={type === 'text'}
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
@@ -156,14 +181,18 @@ const InputField: React.FC<InputFieldProps> = ({
           numberOfLines={multiline ? numberOfLines : undefined}
           editable={!disabled}
           onFocus={() => { setFocused(true);  onFocus?.(); }}
-          onBlur={() =>  { setFocused(false); onBlur?.();  }}
+          onBlur={()  => { setFocused(false); onBlur?.();  }}
         />
 
-        {/* Right — password toggle */}
+        {/* Right — password toggle
+            activeOpacity={1}: outer wrapper already dims; no double-dim here.
+            RN gives touch priority to the innermost responder so this fires
+            setSecureVisible, NOT handleRowPress. */}
         {isPassword && (
           <TouchableOpacity
             onPress={() => setSecureVisible((v) => !v)}
             style={styles.iconRight}
+            activeOpacity={1}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Icon
@@ -174,18 +203,20 @@ const InputField: React.FC<InputFieldProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Right — custom icon */}
+        {/* Right — custom icon
+            Same activeOpacity={1} reasoning as above. */}
         {!isPassword && !!iconRight && (
           <TouchableOpacity
             onPress={onIconRightPress}
             style={styles.iconRight}
+            activeOpacity={1}
             disabled={!onIconRightPress}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Icon name={iconRight} size={18} color={colors.gray400} />
           </TouchableOpacity>
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Error */}
       {hasError && (
@@ -206,18 +237,17 @@ const InputField: React.FC<InputFieldProps> = ({
 
 export default InputField;
 
-
-
-
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   wrapper: { gap: 6 },
 
-
-   label: { fontSize: 10, fontWeight: '800', color: colors.textPlaceholder, letterSpacing: 1.2, textTransform: 'uppercase' },
-
-
+  label: {
+    fontSize:      10,
+    fontWeight:    '800',
+    color:         colors.textPlaceholder,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
   labelDisabled: { opacity: 0.5 },
 
   inputBox: {
@@ -232,16 +262,16 @@ const styles = StyleSheet.create({
   inputBoxDisabled: { opacity: 0.5 },
 
   input: {
-    flex:       1,
-    fontSize:   14,
-    fontWeight: '500',
-    color:      colors.gray900,
-    paddingVertical: 0,   // removes default Android padding
+    flex:            1,
+    fontSize:        typography.body.fontSize,
+    fontWeight:      '500',
+    color:           colors.gray900,
+    paddingVertical: 0,
   },
   inputNumber:   { textAlign: 'right' },
   inputDisabled: { color: colors.gray500 },
 
-  iconLeft:  { },
+  iconLeft:  {},
   iconRight: { paddingLeft: 4 },
 
   errorRow: {

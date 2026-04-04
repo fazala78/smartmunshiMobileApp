@@ -1,3 +1,4 @@
+import { Contact } from './contact';
 import { Currency } from './Currency';
 
 export interface PaymentPayload {
@@ -7,7 +8,7 @@ export interface PaymentPayload {
   type: string;
 
   // ── Optional common ───────────────────────────────────────────────────────
-  date?: Date; // ISO date e.g. "2026-03-01"
+  date?: Date | string; // ISO date e.g. "2026-03-01"
   remarks?: string;
 
   // ── Bank only (required when method === 'bank') ───────────────────────────
@@ -17,21 +18,10 @@ export interface PaymentPayload {
   // ── Cheque only (required when method === 'cheque') ───────────────────────
   cheque_number?: string;
   bank?: Bank;
-  cheque_date?: Date | null;
+  cheque_date?: Date | null | string;
   cheque?: Cheque;
   currency: Currency | null;
   expense: ExpenseAccount | undefined;
-}
-
-export interface Contact {
-  id: number;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  type: string;
-  route: string;
-  currency: Currency;
-  balance: number;
 }
 
 export interface Bank {}
@@ -61,4 +51,16 @@ export interface ExpenseAccount {
   type_id: number;
   parent_id: number | null;
   initial_amount: number;
+}
+
+export interface PaymentListing {
+  id: number;
+  transaction_id: number;
+  receipt_number: string;
+  contact: string;
+  amount: number;
+  payment_method?: string;
+  date: string;
+  route: string;
+  class: string;
 }

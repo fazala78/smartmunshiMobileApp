@@ -10,7 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { getBankReceipt } from '../../services/transactionService';
 import Loading from '../../components/common/Loading';
 import Error from '../../components/common/Error';
 import { useQuery } from '@tanstack/react-query';
@@ -19,26 +18,32 @@ import { formatBalance } from '../../utils/currency';
 import ModalHeader from '../../components/ModalHeader';
 import ModalFooter from '../../components/ModalFooter';
 import { BankReceipt } from '../../types/receipt';
+import { fetchBankPaymentHtml, getBankReceipt } from '../../services/bankPaymentService';
+import { sharePDF } from '../../services/shareService';
+import { Currency } from '../../types/contact';
+import { iosSharePDF } from '../../services/iosShareService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 
 interface TrItem {
   transaction_id: number;
-  route: string;
-  data: BankReceipt;
+  route?: string;
+  data?: BankReceipt;
 
 }
 
 interface JournalEntryReceiptProps {
   visible: boolean;
   onClose: () => void;
+  onAddNew:() => void;
   transaction: TrItem;
 }
 
 const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
   visible,
   onClose,
+  onAddNew,
   transaction,
 }) => {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -81,6 +86,7 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
         }),
       ]).start();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const hasRoute = !!transaction?.route;
@@ -92,7 +98,15 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
     enabled: visible && hasRoute,   // ← skip API if no route
   });
 
-  const data = hasRoute ? fetchedData : transaction?.data;
+
+    const { data: htmlData } = useQuery({
+      queryKey: ['expenseHtml', transaction?.transaction_id],
+      queryFn: async () => fetchBankPaymentHtml(transaction.transaction_id),
+      staleTime: 30 * 1000,
+      enabled: visible,
+    });
+
+      const data = hasRoute ? fetchedData as BankReceipt : transaction as unknown as BankReceipt;
   const showLoader = hasRoute && isLoading;
   const showError = hasRoute && isError;
 
@@ -100,6 +114,15 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
     return null;
   }
 
+
+     const handlePrint = async () => {
+           if (!htmlData) return;
+            if (Platform.OS === 'android') {
+               await sharePDF(htmlData, data?.title as string);
+            }else{
+                await iosSharePDF(htmlData, data?.title as string);
+            }
+         };
  
 
   return (
@@ -129,7 +152,11 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
 
         {!showLoader && !showError && data && (
           <>
-            <ModalHeader title={data?.title} onClose={onClose} />
+           <ModalHeader
+              title={data.title}
+              onClose={onClose}
+              onShare={handlePrint}
+            />
             <ScrollView
               showsVerticalScrollIndicator={false}
               bounces={false}
@@ -148,7 +175,7 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
                 </Animated.View>
 
                 <Text style={styles.successLabel}>{data.title}</Text>
-                <Text style={styles.amountText}>  {formatBalance(data.amount, data.currency)}</Text>
+                <Text style={styles.amountText}>  {formatBalance(data.amount, data.currency as Currency)}</Text>
               </View>
 
               {/* Transaction Details Card */}
@@ -257,7 +284,7 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
         )}
 
         {/* Footer Actions */}
-        <ModalFooter />
+        <ModalFooter onClose={onClose} onAddNew={onAddNew} />
 
         {/* Bottom Indicator */}
         <View style={styles.bottomSpace} />
@@ -385,7 +412,6 @@ const styles = StyleSheet.create({
   divider: {
     borderTopWidth: 2,
     borderTopColor: '#e5e7eb',
-    borderStyle: 'dashed',
     marginVertical: 8,
   },
 

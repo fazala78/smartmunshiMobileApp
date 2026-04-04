@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: '100%',
+    height: 48,
     paddingHorizontal: 12,
     fontSize: 16,
     color: '#111813',

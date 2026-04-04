@@ -76,30 +76,16 @@ api.interceptors.request.use(
           // Add branch ID to headers
           if (branchData.id) {
             config.headers['X-Branch-Id'] = branchData.id;
-            console.log('🏪 Branch ID:', branchData.id);
-          } else {
-            console.warn('⚠️ Branch data exists but no ID found');
           }
-        } else {
-          console.log('ℹ️ No branch selected - skipping Branch ID header');
         }
-      } catch (error) {
-        console.error('❌ Error retrieving branch data:', error);
-      }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (error) {}
     } else {
-      console.log('🚫 Excluding Branch ID for:', config.url);
     }
-
-    console.log('📍 Full URL:', config.baseURL + config.url);
-    console.log('📝 Method:', config.method?.toUpperCase());
-    console.log('📋 Headers:', JSON.stringify(config.headers, null, 2));
-    console.log('📤 Request Data:', JSON.stringify(config.data, null, 2));
-    console.log('=== API REQUEST END ===\n');
 
     return config;
   },
   error => {
-    console.error('❌ Request Interceptor Error:', error);
     return Promise.reject(error);
   },
 );
@@ -107,27 +93,11 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   response => {
-    console.log('✅ === API RESPONSE SUCCESS ===');
-    console.log('📍 URL:', response.config.url);
-    console.log('📊 Status:', response.status);
-    console.log('📥 Datalll:', JSON.stringify(response.data, null, 2));
-    console.log('=== RESPONSE END ===\n');
     return response;
   },
   async error => {
     const originalRequest = error.config;
-
-    console.error('❌ === API RESPONSE ERROR ===');
-    console.error('📍 URL:', error.config?.url);
-    console.error('📍 Base URL:', error.config?.baseURL);
-
     if (error.response) {
-      console.error('📊 Status:', error.response.status);
-      console.error(
-        '📥 Error Data:',
-        JSON.stringify(error.response.data, null, 2),
-      );
-
       // Handle 401 Unauthorized - Token Refresh Logic
       if (error.response.status === 401 && !originalRequest._retry) {
         // Skip refresh for login/refresh endpoints
@@ -135,14 +105,12 @@ api.interceptors.response.use(
           originalRequest.url?.includes('/login') ||
           originalRequest.url?.includes('/refresh')
         ) {
-          console.log('🔐 Login/Refresh endpoint - skipping token refresh');
           await AsyncStorage.removeItem('authToken');
           return Promise.reject(error);
         }
 
         if (isRefreshing) {
           // Queue the request while token is being refreshed
-          console.log('⏳ Queueing request while refreshing...');
           return new Promise((resolve, reject) => {
             failedQueue.push({ resolve, reject });
           })
@@ -190,20 +158,13 @@ api.interceptors.response.use(
       }
       // Handle other 401 cases (already retried)
       else if (error.response.status === 401) {
-        console.log('🔐 Unauthorized after retry - Removing tokens');
         await AsyncStorage.removeItem('authToken');
         await AsyncStorage.removeItem('refreshToken');
         await AsyncStorage.removeItem('selectedBranch');
       }
     } else if (error.request) {
-      console.error('📡 No Response Received');
-      console.error('🌐 Network Error or Server Down');
     } else {
-      console.error('⚠️ Error:', error.message);
     }
-
-    console.error(error, '=== ERROR END ===\ndddd');
-    console.log(error);
     return Promise.reject(error);
   },
 );
