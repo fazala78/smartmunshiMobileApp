@@ -65,7 +65,7 @@ const quickActions: QuickAction[] = [
   { id: 6, route: 'BankTransaction', title: 'Bank', subtitle: 'Bank Transaction', icon: 'account-balance', color: '#8B5CF6', backgroundColor: '#EDE9FE' },
   { id: 7, route: 'AddContact', title: 'Add Contact', subtitle: 'Add New Con.', icon: 'person-add', color: '#8B5CF6', backgroundColor: '#EDE9FE' },
   { id: 8, route: 'AddProduct', title: 'Add Product', subtitle: 'Add New Pro.', icon: 'inventory', color: '#0D9488', backgroundColor: '#CCFBF1' },
-  { id: 9, route: 'Billing', title: 'Assembly', subtitle: 'Production', icon: 'build', color: colors.warning, backgroundColor: colors.warningLight },
+  { id: 9, route: 'Assembly', title: 'Assembly', subtitle: 'Production', icon: 'build', color: colors.warning, backgroundColor: colors.warningLight },
   { id: 10, route: 'JournalEntry', title: 'Journal', subtitle: 'Manual Entry', icon: 'menu-book', color: colors.gray500, backgroundColor: colors.gray100 },
 ];
 

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
@@ -248,25 +249,62 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <DatePickerField
-                label="Date"
-                value={payload?.date as Date}
-                onChange={(date) =>
-                  setPayload((prev) => prev ? { ...prev, date } as Inventory : prev)
-                }
-                placeholder="Select date"
-                inputBg={colors.backgroundLight}
-              />
 
-              <DatePickerField
-                label="Due Date"
-                value={payload?.due_date}
-                onChange={(date) =>
-                  setPayload((prev) => prev ? { ...prev, due_date: date } as Inventory : prev)
-                }
-                placeholder="Select Due date"
-                inputBg={colors.backgroundLight}
-              />
+              <View style={styles.dateRow}>
+                <View style={{ flex: 1 }}>
+                  <DatePickerField
+                    label="Date"
+                    value={payload?.date as Date}
+                    onChange={(date) =>
+                      setPayload((prev) => prev ? { ...prev, date } as Inventory : prev)
+                    }
+                    placeholder="Select date"
+                    inputBg={colors.backgroundLight}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <DatePickerField
+                    label="Due Date"
+                    value={payload?.due_date}
+                    onChange={(date) =>
+                      setPayload((prev) => prev ? { ...prev, due_date: date } as Inventory : prev)
+                    }
+                    placeholder="Select Due date"
+                    inputBg={colors.backgroundLight}
+                  />
+                </View>
+              </View>
+              {/* Mark as Paid toggle */}
+              <View style={styles.markPaidCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.markPaidTitle}>Mark as Paid</Text>
+                  <Text style={styles.markPaidSub}>
+                    {payload.mark_paid ? `Cash ·` : 'Auto-fill full amount as cash'}
+                  </Text>
+                </View>
+                <Switch
+                  value={payload.mark_paid ?? false}
+                  onValueChange={(value) =>
+                    setPayload((prev) =>
+                      prev
+                        ? ({ ...prev, mark_paid: value, contact: prev.contact ?? null } as Inventory)
+                        : prev
+                    )
+                  }
+                  trackColor={{
+                    false: colors.gray400,
+                    true: colors.primary,
+                  }}
+                  thumbColor={payload.mark_paid ? colors.primary : colors.gray700}
+                />
+              </View>
+
+
+
+
+
+
+
 
               <InputField
                 bg="white"
@@ -283,6 +321,32 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 placeholder="e.g. 10.00"
                 icon="discount"
               />
+
+
+              <View>
+                <Text style={styles.addPaymentLabel}>Add Payment</Text>
+                <View style={styles.paymentTabs}>
+                  {RECEIVE_PAYMENT.map((payment) => (
+                    <TouchableOpacity
+                      key={payment.lable}
+                      style={[
+                        styles.paymentTab,
+                        { borderColor: payment.color + '40', backgroundColor: payment.bg },
+                      ]}
+                      onPress={() => addEntry(payment as Payment)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name={payment.icon} size={20} color={payment.color} />
+                      <Text style={[styles.paymentTabText, { color: payment.color }]}>
+                        {payment.lable}
+                      </Text>
+                      <View style={[styles.addDot, { backgroundColor: payment.color }]}>
+                        <Icon name="add" size={10} color={colors.white} />
+                      </View>
+                    </TouchableOpacity> 
+                  ))}
+                </View>
+              </View>
 
               {/* ── Payment Method ── */}
               <View style={styles.section}>
@@ -309,6 +373,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     color={colors.gray400}
                   />
                 </TouchableOpacity>
+
+
 
                 {paymentOpen && (
                   <View style={styles.sectionBody}>
@@ -626,7 +692,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         />
 
       </View>
+      
     </Modal>
+    
   );
 };
 
@@ -646,7 +714,7 @@ const styles = StyleSheet.create({
    * absorbs the size change and the footer stays pinned above the keyboard.
    */
   kavSheet: {
-    height: '92%',
+    height: '94%',
   },
 
   container: {
@@ -701,6 +769,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   contactChipText: { textTransform: 'capitalize', fontSize: 15, fontWeight: '600', color: colors.gray600, maxWidth: 500 },
+  dateRow: { flexDirection: 'row', gap: 12 },
 
   // ── Body ────────────────────────────────────────────────────────────────
   body: { flex: 1, minHeight: 0 },
@@ -768,14 +837,39 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
 
+
+  // ── Mark as Paid ──
+  markPaidCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: colors.gray200,
+  },
+  markPaidTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.gray500,
+  },
+  markPaidSub: {
+    fontSize: 12,
+    color: colors.gray400,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+
   // ── Payment ───────────────────────────────────────────────────────────────
   addPaymentLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.gray400,
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    fontSize:      10,
+    fontWeight:    '800',
+    color:         colors.textPlaceholder,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
+    marginBottom:   6,
+  
   },
   paymentTabs: { flexDirection: 'row', gap: 8 },
   paymentTab: {

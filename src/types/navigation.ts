@@ -29,4 +29,6 @@ export type RootStackParamList = {
   bankPayments: { item: any };
   expensePayment: { item: any };
   dailyCashReport: undefined;
+  Assembly: undefined;
+  subLots: { lotId: number };
 };

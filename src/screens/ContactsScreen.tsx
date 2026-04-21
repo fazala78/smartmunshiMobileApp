@@ -285,7 +285,7 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
 
       {isError && !isLoading && <Error refetch={refetch} />}
 
-      {/* Contacts List */}
+      {/* Contacts Listcc */}
       {isLoading && contacts.length === 0 ? (
         <Loading />
       ) : (

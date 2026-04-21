@@ -29,6 +29,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getConfiguration } from '../services/authService';
 import DailyCashReportScreen from '../screens/DailyCashReportScreen';
 import { ContactSyncProvider } from '../context/ContactSyncContext';
+import AssemblySubLots from '../screens/AssemblySubLots';
+import AssemblyScreen from '../screens/AssemblyScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -103,6 +105,8 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="bankPayments" component={BankPaymentListScreen} options={{ headerShown: false, gestureEnabled: true }} />
         <Stack.Screen name="expensePayment" component={ExpensePaymentListScreen} options={{ headerShown: false, gestureEnabled: true }} />
          <Stack.Screen name="dailyCashReport" component={DailyCashReportScreen} options={{ headerShown: false, gestureEnabled: true }} />
+        <Stack.Screen name="Assembly" component={AssemblyScreen} options={{ headerShown: false, gestureEnabled: true }} />
+         <Stack.Screen name="subLots"    component={AssemblySubLots} options={{ headerShown: false, gestureEnabled: true }} />
       </Stack.Navigator>
     </NavigationContainer>
      </ContactSyncProvider>

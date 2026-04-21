@@ -36,7 +36,7 @@
 	<key>NSContactsUsageDescription</key>
 	<string>We need access to sync your contacts.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string/>
+	<string></string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
