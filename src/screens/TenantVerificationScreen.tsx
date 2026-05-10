@@ -1,7 +1,16 @@
 // screens/TenantVerificationScreen.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, Alert, StatusBar, Image, AppState,
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  StatusBar,
+  Image,
+  AppState,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { verifyTenant } from '../services/tenantService';
@@ -29,40 +38,26 @@ const TenantVerificationScreen: React.FC<Props> = ({ navigation }) => {
 
   const appState = useRef(AppState.currentState);
 
-  // ── 1. Check permission on mount with a safe timeout ──────────────────────
-  // On fresh install, checkContactsPermission() can hang indefinitely.
-  // We race it against a 3s timeout so the UI always becomes interactive.
   useEffect(() => {
     let cancelled = false;
-
     const checkWithTimeout = async () => {
       try {
         const timeoutPromise = new Promise<boolean>(resolve =>
-          setTimeout(() => resolve(false), 3000), // fallback after 3s
+          setTimeout(() => resolve(false), 3000),
         );
         const granted = await Promise.race([
           checkContactsPermission(),
           timeoutPromise,
         ]);
-        if (!cancelled) {
-          setPermissionGranted(granted);
-        }
+        if (!cancelled) setPermissionGranted(granted);
       } catch {
-        if (!cancelled) {
-          setPermissionGranted(false);
-        }
+        if (!cancelled) setPermissionGranted(false);
       }
     };
-
     checkWithTimeout();
     return () => { cancelled = true; };
   }, []);
 
-  // ── 2. Re-check permission when app comes back to foreground ──────────────
-  // Handles the case where user grants permission via Settings and returns.
-  // Also resolves the "endless loading after granting permission" issue —
-  // after the system prompt closes, the app returns to active state and
-  // we re-check, updating permissionGranted correctly.
   useEffect(() => {
     const sub = AppState.addEventListener('change', async (nextState) => {
       if (
@@ -77,7 +72,6 @@ const TenantVerificationScreen: React.FC<Props> = ({ navigation }) => {
     return () => sub.remove();
   }, []);
 
-  // ── 3. Request permission — just opens the prompt, zero loading state ──────
   const handleRequestPermission = async () => {
     const granted = await requestContactsPermission();
     setPermissionGranted(granted);
@@ -88,29 +82,23 @@ const TenantVerificationScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // ── 4. Verify tenant ───────────────────────────────────────────────────────
   const handleVerifyTenant = async (): Promise<void> => {
-    // Permission missing → show prompt, return. No loading.
     if (!permissionGranted) {
       await handleRequestPermission();
       return;
     }
-
     if (!tenantKey.trim()) {
       setError('Please enter a tenant key');
       return;
     }
-
     setError('');
     setVerifying(true);
-
     try {
       const response = await verifyTenant(tenantKey);
-
       if (response.success && response.tenant) {
         await AsyncStorage.setItem('tenant', JSON.stringify(response.tenant));
         await AsyncStorage.setItem('tenantKey', response.tenant.id);
-        await saveDeviceContactsToLocalDB(); // background-safe, non-blocking UX
+        await saveDeviceContactsToLocalDB();
         navigation.replace('Login');
       } else {
         setError('Invalid response from server. Please try again.');
@@ -118,104 +106,188 @@ const TenantVerificationScreen: React.FC<Props> = ({ navigation }) => {
     } catch (err: any) {
       setError(err.message || err.response?.data?.message || 'Verification failed');
     } finally {
-      setVerifying(false); // always clears spinner — no more endless loading
+      setVerifying(false);
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    // ✅ FIX 1: KeyboardAvoidingView at the root
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar barStyle="dark-content" backgroundColor={colors.backgroundLight} />
 
-      <View style={styles.iconContainer}>
-        <Image
-          source={require('../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
+      {/* ✅ FIX 2: ScrollView wraps all content so nothing overlaps */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ✅ FIX 3: Top section — logo + header. marginTop reduced from 120 → safe flex spacing */}
+        <View style={styles.topSection}>
+          <View style={styles.iconContainer}>
+            <Image
+              source={require('../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
-      <View style={styles.headerContainer}>
-        <Text style={styles.title}>Enter your Application Key to continue</Text>
-        <Text style={styles.subtitle}>
-          This key identifies your specific organization or store and securely
-          connects you to your store.
-        </Text>
-      </View>
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>Enter your Application Key to continue</Text>
+            <Text style={styles.subtitle}>
+              This key identifies your specific organization or store and securely
+              connects you to your store.
+            </Text>
+          </View>
+        </View>
 
-      {/* Permission banner — only when checked AND not granted */}
-     
+        {/* ✅ FIX 4: Form in its own section — no marginTop:'auto' dependency */}
+        <View style={styles.formContainer}>
+          <View style={styles.field}>
+            <InputField
+              bg="white"
+              textAlign="left"
+              label="App Key"
+              type="email"
+              value={tenantKey}
+              onChangeText={(text: React.SetStateAction<string>) => {
+                setTenantKey(text);
+                setError('');
+              }}
+              placeholder="e.g., ORG-12345"
+              icon="key"
+            />
+          </View>
 
-      <View style={styles.formContainer}>
-        <View style={styles.field}>
-          <InputField
-            bg="white"
-            textAlign="left"
-            label="App Key"
-            type="email"
-            value={tenantKey}
-            onChangeText={(text: React.SetStateAction<string>) => {
-              setTenantKey(text);
-              setError('');
-            }}
-            placeholder="e.g., ORG-12345"
-            icon="key"
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
+
+          <Button
+            title="Connect to Store"
+            onPress={handleVerifyTenant}
+            loading={verifying}
+            variant="primary"
+            size="medium"
           />
         </View>
 
-        {!!error && <Text style={styles.errorText}>{error}</Text>}
-
-        {/*
-          Button is disabled (not loading) while initial permission check runs.
-          Once permissionChecked = true, it becomes fully interactive.
-          loading is ONLY true during the verifyTenant API call.
-        */}
-        <Button
-          title='Connect to Store'
-          onPress={handleVerifyTenant}
-          loading={verifying}
-          variant="primary"
-          size="medium"
-        />
-      </View>
-
-      <View style={styles.footer}>
-        <IconButton
-          icon="❓"
-          label="Where do I find my tenant key?"
-          variant="muted"
-          onPress={() =>
-            Alert.alert(
-              'Finding Your Tenant Key',
-              'Contact your administrator or check your welcome email for your tenant key.',
-            )
-          }
-        />
-        <View style={styles.secureContainer}>
-          <Text style={styles.lockIcon}>🔒</Text>
-          <Text style={styles.secureText}>SECURE CONNECTION</Text>
+        {/* ✅ FIX 5: Footer no longer uses marginTop:'auto' — replaced with paddingTop */}
+        <View style={styles.footer}>
+          <IconButton
+            icon="❓"
+            label="Where do I find my tenant key?"
+            variant="muted"
+            onPress={() =>
+              Alert.alert(
+                'Finding Your Tenant Key',
+                'Contact your administrator or check your welcome email for your tenant key.',
+              )
+            }
+          />
+          <View style={styles.secureContainer}>
+            <Text style={styles.lockIcon}>🔒</Text>
+            <Text style={styles.secureText}>SECURE CONNECTION</Text>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  field:            { gap: 8, marginBottom: 20 },
-  container:        { flex: 1, backgroundColor: colors.white, paddingHorizontal: spacing.lg },
-  iconContainer:    { alignItems: 'center', marginTop: 120, height: 100 },
-  logo:             { width: '70%', height: '70%' },
-  headerContainer:  { alignItems: 'center', paddingHorizontal: spacing.md, marginBottom: spacing.xl },
-  title:            { ...typography.heading2, color: colors.textPrimary, textAlign: 'center', marginBottom: spacing.sm },
-  subtitle:         { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 24 },
-  formContainer:    { marginTop: spacing.sm },
-  errorText:        { color: colors.danger, fontSize: 13, marginBottom: 12, textAlign: 'center' },
-  permissionTitle:  { fontSize: 14, fontWeight: '600', color: '#856404' },
-  permissionBody:   { fontSize: 13, color: '#856404', textAlign: 'center' },
-  footer:           { marginTop: 'auto', marginBottom: spacing.xxl, alignItems: 'center', gap: spacing.md },
-  secureContainer:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, opacity: 0.4 },
-  lockIcon:         { fontSize: 10 },
-  secureText:       { fontSize: 10, fontWeight: '700', color: colors.textPrimary, letterSpacing: 1.5 },
+  // ✅ FIX 1: container is flex:1, no padding — let ScrollView handle it
+  container: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  // ✅ FIX 2: scrollContent uses flexGrow + justifyContent so it centers
+  // on tall screens but scrolls naturally on short ones or when keyboard opens
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  // ✅ FIX 3: topSection groups logo + header with safe padding instead of fixed marginTop
+  topSection: {
+    paddingTop: spacing.xxl,   // replaces the rigid marginTop: 120
+    alignItems: 'center',
+    marginTop:90,
+  },
+  // ✅ FIX 3: iconContainer no longer has a fixed height — sizes to its content
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    width: '100%',
+  },
+  logo: {
+    width: '70%',
+    height: 80,   // height on the image, not the container
+  },
+  headerContainer: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  title: {
+    ...typography.heading2,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  // ✅ FIX 4: formContainer is a plain block — no auto margins
+  formContainer: {
+    marginTop: spacing.sm,
+  },
+  field: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  // ✅ FIX 5: footer uses paddingTop instead of marginTop:'auto'
+  // marginTop:'auto' is valid in a plain View but breaks inside ScrollView's
+  // contentContainer because the scroll content has no fixed height to push against
+  footer: {
+    paddingTop: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  secureContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    opacity: 0.4,
+  },
+  lockIcon: {
+    fontSize: 10,
+  },
+  secureText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: 1.5,
+  },
+  permissionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+  },
+  permissionBody: {
+    fontSize: 13,
+    color: '#856404',
+    textAlign: 'center',
+  },
 });
 
 export default TenantVerificationScreen;

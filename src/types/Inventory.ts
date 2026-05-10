@@ -177,6 +177,7 @@ export interface LocationType {
   location: Location;
 }
 export interface ConsumProducts {
+  totalConsumed: any;
   id: number;
   name: string;
   supplied_qty: number;

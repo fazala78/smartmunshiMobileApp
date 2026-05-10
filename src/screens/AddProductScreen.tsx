@@ -12,11 +12,12 @@ import { colors } from '../theme';
 import InputField from '../components/ui/InputField';
 import AsyncDropdown from '../components/AsyncDropdown';
 import { CategoriesType, ProductFormData, unitsType } from '../types/Product';
-import { createProduct } from '../services/ProductService';
+import { createProduct, fetchAllProducts } from '../services/ProductService';
 import SuccessModal, { SuccessResponse } from './modals/SuccessModal';
 import Header from '../components/ui/Header';
 import FooterError from '../components/common/FooterError';
 import { useSuccessSound } from '../utils/useSuccessSound';
+import { getLastProductsSyncTime, setLastProductsSyncTime } from '../services/storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,9 +55,9 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     const [photo, setPhoto] = useState<string | null>(null);
     const [success, setSuccess] = useState<SuccessResponse | null>(null);
     const [showSuccess, setShowSuccess] = useState(false);
-        const [footerError, setFooterError] = useState<string | null>(null);
-        const {play} = useSuccessSound();
-    
+    const [footerError, setFooterError] = useState<string | null>(null);
+    const { play } = useSuccessSound();
+
 
     const toastAnim = useRef(new Animated.Value(0)).current;
     let resetSwipe: (() => void) | null = null;
@@ -67,7 +68,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
 
     // ── Toast ──────────────────────────────────────────────────────────────────
     const showError = (message: string) => {
-          setFooterError(message);
+        setFooterError(message);
         // Auto-clear after 4 s
         setTimeout(() => setFooterError(null), 4000);
     };
@@ -90,7 +91,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         if (!form.name.trim()) errs.push('Please enter a product name.');
         if (!form.price) errs.push('Please enter a sale price.');
         if (!form.cost) errs.push('Please enter a purchase price.');
-        if (!form.opening_stock) errs.push('Please enter a Opening stock.');
+        if (form.opening_stock === null) errs.push('Please enter a Opening stock.');
         if (!form.unit) errs.push('Select the Product Unit.');
         return errs;
     };
@@ -98,12 +99,12 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     // ── Submit ─────────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
         if (loading) return;
-         const errs = validate();
-         if (errs.length > 0) {
-             showError(errs[0]);
-             resetSwipe?.();
-             return;
-         } 
+        const errs = validate();
+        if (errs.length > 0) {
+            showError(errs[0]);
+            resetSwipe?.();
+            return;
+        }
 
         try {
             setLoading(true);
@@ -127,6 +128,15 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         } finally {
             setLoading(false);
             resetSwipe?.();
+            const lastProductsSyncTime = getLastProductsSyncTime();
+            const now = new Date().toISOString();
+            const results = await Promise.allSettled([
+                fetchAllProducts({ limit: 30, since: lastProductsSyncTime || undefined }),
+            ]);
+
+            if (results[0].status === 'fulfilled') {
+                setLastProductsSyncTime(now);
+            }
         }
     };
 
@@ -194,15 +204,36 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                             icon="inventory-2"
                         />
 
-                        <InputField
-                            bg="white"
-                            label="SKU / Barcode"
-                            type="text"
-                            value={form.barcode}
-                            onChangeText={(v) => update({ barcode: v })}
-                            placeholder="Scan or enter SKU"
-                            icon="barcode-reader"
-                        />
+                         {/* ── Inventory Initializer ── */}
+                    <View style={styles.inventorySection}>
+                        <Text style={styles.sectionTitle}>Inventory Initializer</Text>
+                        <View style={styles.row}>
+                            <View style={[styles.rowItem, { flex: 2 }]}>
+                                <InputField
+                                    bg="white"
+                                    label="Opening Stock"
+                                    type="number"
+                                    value={form.opening_stock}
+                                    onChangeText={(v) => update({ opening_stock: parseFloat(v) || 0 })}
+                                    placeholder="0"
+                                    icon="inventory"
+                                />
+                            </View>
+                            <View style={styles.rowItem}>
+                                <AsyncDropdown
+                                    url="/units"
+                                    searchParam="q"
+                                    minSearchLength={1}
+                                    creatable
+                                    label="Unit"
+                                    leadingIconName="straighten"
+                                    inputBg={colors.backgroundLight}
+                                    onSelect={(v) => update({ unit: v as unknown as unitsType })} value={null}                                />
+                            </View>
+                        </View>
+                    </View>
+
+                      
                     </View>
 
                     {/* ── Pricing (side by side) ── */}
@@ -230,6 +261,15 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                             />
                         </View>
                     </View>
+                     <InputField
+                            bg="white"
+                            label="SKU / Barcode"
+                            type="text"
+                            value={form.barcode}
+                            onChangeText={(v) => update({ barcode: v })}
+                            placeholder="Scan or enter SKU"
+                            icon="barcode-reader"
+                        />
 
                     {/* ── Category & Tax (side by side) ── */}
                     <View style={styles.row}>
@@ -243,11 +283,14 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                 leadingIconName="category"
                                 inputBg={colors.backgroundLight}
                                 // Append to existing array instead of replacing
-                                onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })}
-                            />
+                                onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })} value={null}                            />
                         </View>
+                       
                     </View>
+
+                    
                     {/* Remarks */}
+
                     <InputField
                         bg="white"
                         textAlign="left"
@@ -261,35 +304,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                         numberOfLines={3}
                     />
 
-                    {/* ── Inventory Initializer ── */}
-                    <View style={styles.inventorySection}>
-                        <Text style={styles.sectionTitle}>Inventory Initializer</Text>
-                        <View style={styles.row}>
-                            <View style={[styles.rowItem, { flex: 2 }]}>
-                                <InputField
-                                    bg="white"
-                                    label="Opening Stock"
-                                    type="number"
-                                    value={form.opening_stock}
-                                    onChangeText={(v) => update({ opening_stock: parseFloat(v) || 0 })}
-                                    placeholder="0"
-                                    icon="inventory"
-                                />
-                            </View>
-                            <View style={styles.rowItem}>
-                                <AsyncDropdown
-                                    url="/units"
-                                    searchParam="q"
-                                    minSearchLength={1}
-                                    creatable
-                                    label="Unit"
-                                    leadingIconName="straighten"
-                                    inputBg={colors.backgroundLight}
-                                    onSelect={(v) => update({ unit: v as unknown as unitsType })}
-                                />
-                            </View>
-                        </View>
-                    </View>
+                   
 
                     <View style={{ height: 32 }} />
                 </ScrollView>
@@ -303,22 +318,22 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                         />
 
                     ) : null}
-                     <SwipeButton
-                                  title={loading ? 'Processing...' : 'Slide to Save Product'}
-                                  thumbIconComponent={ThumbIcon}
-                                  railBackgroundColor={colors.primaryLight}
-                                  railBorderColor={colors.primaryLight}
-                                  railFillBackgroundColor={colors.primary}
-                                  thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
-                                  thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
-                                  titleColor={colors.backgroundDark}
-                                  titleFontSize={15}
-                                  height={52}
-                                  swipeSuccessThreshold={70}
-                                  disabled={loading}
-                                  onSwipeSuccess={handleSubmit}
-                                  forceReset={(reset: () => void) => { resetSwipe = reset; }}
-                                />
+                    <SwipeButton
+                        title={loading ? 'Processing...' : 'Slide to Save Product'}
+                        thumbIconComponent={ThumbIcon}
+                        railBackgroundColor={colors.primaryLight}
+                        railBorderColor={colors.primaryLight}
+                        railFillBackgroundColor={colors.primary}
+                        thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
+                        thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
+                        titleColor={colors.backgroundDark}
+                        titleFontSize={15}
+                        height={52}
+                        swipeSuccessThreshold={70}
+                        disabled={loading}
+                        onSwipeSuccess={handleSubmit}
+                        forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                    />
                 </View>
             </KeyboardAvoidingView>
 
@@ -335,8 +350,8 @@ const styles = StyleSheet.create({
     // Header
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray100 },
     backBtn: { width: 48, height: 48, justifyContent: 'center' },
-     headerTitle:  { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
-      headerSpacer: { width: 70 },
+    headerTitle: { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
+    headerSpacer: { width: 70 },
     saveBtn: { fontSize: 16, fontWeight: '800', color: colors.primary, minWidth: 48, textAlign: 'right' },
 
     // Body
@@ -355,7 +370,7 @@ const styles = StyleSheet.create({
 
     // Section
     section: { gap: 12 },
-    inventorySection: { gap: 12, borderTopWidth: 1, borderTopColor: colors.gray100, paddingTop: 16 },
+    inventorySection: { gap: 12,  paddingTop: 16 },
     sectionTitle: { fontSize: 12, fontWeight: '800', color: colors.primary, letterSpacing: 1.2, textTransform: 'uppercase', paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: colors.primaryMuted, alignSelf: 'flex-start' },
 
     // Side-by-side row

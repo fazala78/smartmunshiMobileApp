@@ -41,6 +41,7 @@ const PurchaseReturnCheckoutModal: React.FC<PurchaseReturnCheckoutModalProps> = 
     // ── State ──────────────────────────────────────────────────────────────────
     const [loading, setLoading] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null); // replaces toast
+    const [showBalanceOverview, setShowBalanceOverview] = useState(false);
    const {play} = useSuccessSound();
 
     let resetSwipe: (() => void) | null = null;
@@ -72,6 +73,8 @@ const PurchaseReturnCheckoutModal: React.FC<PurchaseReturnCheckoutModalProps> = 
     // ── Checkout ───────────────────────────────────────────────────────────────
     const checkOut = async () => {
         if (loading) return;
+
+        setShowBalanceOverview(true);
 
         const validationErrors = validate();
         if (validationErrors.length > 0) {
@@ -182,7 +185,7 @@ const PurchaseReturnCheckoutModal: React.FC<PurchaseReturnCheckoutModalProps> = 
                             />
 
                             {/* ── Summary ── */}
-                            <TransactionSummary payload={payload} />
+                            <TransactionSummary payload={payload} showBalanceOverview={showBalanceOverview} />
                         </ScrollView>
 
                         {/* ── Footer ── */}

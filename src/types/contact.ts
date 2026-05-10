@@ -19,6 +19,7 @@ export interface Contact {
   createdAt?: string;
   updatedAt?: string;
   currency?: Currency;
+  lots?: number;
 }
 
 export interface PaginatedResponse {
@@ -37,6 +38,7 @@ export interface ContactFilters {
   search?: FilterState;
   page?: number;
   limit?: number;
+  since: string | undefined;
 }
 export interface FilterState {
   searchQuery: string;

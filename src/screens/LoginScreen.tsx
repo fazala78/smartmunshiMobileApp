@@ -6,6 +6,9 @@ import {
   StyleSheet,
   Alert,
   Image,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
@@ -14,7 +17,7 @@ import type { RootStackParamList } from '../types/navigation';
 import InputField from '../components/ui/InputField';
 import { Button } from '../components/ui';
 import { colors } from '../theme';
-
+import { clearAllStorage } from '../services/storage';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -25,7 +28,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [tenantName, setTenantName] = useState<string>('');
-  //  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     loadTenantInfo();
@@ -38,9 +40,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         const tenant = JSON.parse(tenantData);
         setTenantName(tenant.name || tenant.id);
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   const handleChangeTenant = async () => {
@@ -48,29 +48,24 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       'Change Tenant',
       'Are you sure you want to change tenant? You will need to enter a new tenant key.',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Change Tenant',
           style: 'destructive',
           onPress: async () => {
             try {
-
-              // Clear tenant data
               await AsyncStorage.removeItem('tenant');
               await AsyncStorage.removeItem('tenantKey');
-
-
-              // Navigate back to tenant verification
+              await AsyncStorage.removeItem('authToken');
+              await AsyncStorage.removeItem('user');
+              await AsyncStorage.removeItem('selectedBranch');
+              clearAllStorage();
               navigation.replace('TenantVerification');
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
             } catch (error) {
               Alert.alert('Error', 'Failed to change tenant');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -81,7 +76,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-
     setLoading(true);
     try {
       const response = await api.post('/login', {
@@ -90,13 +84,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       });
 
       if (response.data.success) {
-        // Create masked email (e.g., "u***r@example.com")
-        const maskEmail = (email: string) => {
-          const [local, domain] = email.split('@');
+        const maskEmail = (emailAddr: string) => {
+          const [local, domain] = emailAddr.split('@');
           const maskedLocal = local[0] + '***' + local[local.length - 1];
           return `${maskedLocal}@${domain}`;
         };
-        // Navigate to OTP screen with email params
         navigation.replace('OTPVerification', {
           email: email.trim(),
           maskedEmail: maskEmail(email.trim()),
@@ -105,153 +97,172 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       } else {
         Alert.alert('Error', 'Invalid response from server');
       }
-
     } catch (error: any) {
-
       let errorMessage = 'Login failed. Please try again.';
-
       if (error.response) {
-
         if (error.response.status === 401) {
           errorMessage = error.response.data?.message || 'Invalid email or password';
         } else if (error.response.status === 403) {
           errorMessage = error.response.data?.message || 'Your account has been deactivated';
         } else if (error.response.status === 422) {
           const errors = error.response.data?.errors;
-          if (errors) {
-            errorMessage = Object.values(errors).flat().join('\n');
-          } else {
-            errorMessage = error.response.data?.message || 'Validation failed';
-          }
+          errorMessage = errors
+            ? Object.values(errors).flat().join('\n')
+            : error.response.data?.message || 'Validation failed';
         } else if (error.response.data?.message) {
           errorMessage = error.response.data.message;
         }
       } else if (error.request) {
-
         errorMessage = 'Network error. Please check your connection.';
       } else {
-
         errorMessage = error.message || 'An unexpected error occurred';
       }
-
-
       Alert.alert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
-
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.titleSection}>
-          <Image
-            source={require('../assets/logo.png')} // Ensure path is correct
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </View>
-        {tenantName ? (
-          <Text style={styles.title}>
-            Welcome to {tenantName}
-          </Text>
-        ) : null}
-        <Text style={styles.subtitle}>
-          Access your terminal to start processing transactions.
-        </Text>
-        <View style={styles.field}>
-          <InputField
-            bg="white"
-            textAlign="left"
-            label="Email Address"
-            type="email"
-            value={email}
-            onChangeText={(text: React.SetStateAction<string>) => {
-              setEmail(text);
-              //   setError(''); // Clear error on input
-            }}
-            placeholder="email@abc.com"
-            icon="email"
-          /></View>
-
-        <View style={styles.field}>
-          <InputField
-            bg="white"
-            textAlign="left"
-            label="Enter Password"
-            type="password"
-            value={password}
-            onChangeText={(text: React.SetStateAction<string>) => {
-              setPassword(text);
-              //  setError(''); // Clear error on input
-            }}
-            placeholder="Password"
-            icon="password"
-          />
-        </View>
-        <Button
-          title="Login"
-          onPress={handleLogin}
-          loading={loading}
-          variant="primary"
-          size="medium"
-        />
-
-
-        {/* Change Tenant Button */}
-        <TouchableOpacity
-          style={styles.biometricButton}
-          onPress={handleChangeTenant}
-          disabled={loading}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.biometricIcon}>👤</Text>
-          <Text style={styles.biometricText}>Change Account</Text>
-        </TouchableOpacity>
-
-
-        {/* Optional: Add forgot password link */}
-        <TouchableOpacity
-          onPress={() => {
-            Alert.alert('Forgot Password', 'Please contact your administrator to reset your password.');
-          }}
-          disabled={loading}
-        >
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Forgot Password?</Text>
-            <View style={styles.dividerLine} />
+    // ✅ FIX 1: KeyboardAvoidingView prevents keyboard from covering inputs
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* ✅ FIX 2: ScrollView allows content to scroll and prevents overlap */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          {/* ✅ FIX 3: Removed fixed height from titleSection */}
+          <View style={styles.titleSection}>
+            <Image
+              source={require('../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
-        </TouchableOpacity>
 
+          {tenantName ? (
+            <Text style={styles.title}>Welcome to {tenantName}</Text>
+          ) : null}
 
+          <Text style={styles.subtitle}>
+            Access your terminal to start processing transactions.
+          </Text>
 
+          <View style={styles.field}>
+            <InputField
+              bg="white"
+              textAlign="left"
+              label="Email Address"
+              type="email"
+              value={email}
+              onChangeText={(text: React.SetStateAction<string>) => setEmail(text)}
+              placeholder="email@abc.com"
+              icon="email"
+            />
+          </View>
 
+          <View style={styles.field}>
+            <InputField
+              bg="white"
+              textAlign="left"
+              label="Enter Password"
+              type="password"
+              value={password}
+              onChangeText={(text: React.SetStateAction<string>) => setPassword(text)}
+              placeholder="Password"
+              icon="password"
+            />
+          </View>
 
+          <Button
+            title="Login"
+            onPress={handleLogin}
+            loading={loading}
+            variant="primary"
+            size="medium"
+          />
 
-      </View>
-    </View>
+          <TouchableOpacity
+            style={styles.biometricButton}
+            onPress={handleChangeTenant}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.biometricIcon}>👤</Text>
+            <Text style={styles.biometricText}>Change Account</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                'Forgot Password',
+                'Please contact your administrator to reset your password.'
+              );
+            }}
+            disabled={loading}
+          >
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>Forgot Password?</Text>
+              <View style={styles.dividerLine} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  field: {
-    gap: 8,
-    marginBottom: 20,
-  },
   container: {
     flex: 1,
     backgroundColor: colors.white,
   },
-
-
-  content: {
-    flex: 1,
+  // ✅ FIX 4: scrollContent uses flexGrow instead of flex so it stretches
+  // but also scrolls when content overflows
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
   },
-
+  content: {
+    padding: 20,
+    paddingBottom: 40, // ✅ FIX 5: bottom padding so last item isn't flush to edge
+  },
+  field: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  // ✅ FIX 6: titleSection no longer has a fixed height — it sizes to its content
+  titleSection: {
+    alignItems: 'center',
+    marginTop: 32,
+    marginBottom: 12,
+  },
+  logo: {
+    width: '70%',
+    height: 80, // height is now on the image, not the container
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 23,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 24,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 10,
+  },
   biometricButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -272,38 +283,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textPrimary,
   },
-
-  titleSection: {
-    alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 12,
-    height: 80,
-
-  },
-
-  logo: {
-    width: '70%',
-    height: '100%',
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 23,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 24,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-
-  subtitle: {
-    fontSize: 16,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 10,
-
-  },
-
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -323,4 +302,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginScreen; 
+export default LoginScreen;

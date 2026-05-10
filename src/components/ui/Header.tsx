@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { colors, typography } from '../../theme';
+import { colors, spacing } from '../../theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface HeaderProps {
@@ -36,11 +36,14 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     backgroundColor: colors.white,
   },
+ 
   headerTitle: {
-    ...typography.heading1,
-    color: colors.textPrimary,
     flex: 1,
-    textAlign: 'center',
+    fontWeight: '700',
+    fontSize: 20,
+    color: colors.textPrimary,
+    marginLeft: spacing.sm,
+    textTransform:'capitalize',
   },
 });
 

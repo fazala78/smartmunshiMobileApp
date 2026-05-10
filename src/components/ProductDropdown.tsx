@@ -36,6 +36,7 @@ interface ProductItem<T extends BaseRecord> {
   image: string | null;
   sku: string | null;
   _raw: T;
+  _isNew?: boolean; // flag for creatable option
 }
 
 export interface ProductDropdownRef {
@@ -46,6 +47,8 @@ export interface ProductDropdownRef {
 
 export interface ProductDropdownProps<T extends BaseRecord> {
   onSelect: (product: T) => void;
+  /** Called when the user confirms a new product creation. Receives the typed name. */
+  onCreate?: (name: string) => void;
   url?: string;
   searchParam?: string;
   placeholder?: string;
@@ -58,6 +61,10 @@ export interface ProductDropdownProps<T extends BaseRecord> {
   debounceMs?: number;
   zIndex?: number;
   disabled?: boolean;
+  /** When true, shows a "Create '{query}'" row when no results match. */
+  creatable?: boolean;
+  /** Label prefix for the create row. Defaults to "Create". */
+  createLabel?: string;
   style?: ViewStyle;
 }
 
@@ -68,6 +75,7 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
   function ProductDropdown(
     {
       onSelect,
+      onCreate,
       url = '/products',
       searchParam = 'search',
       placeholder = 'Search products or SKU...',
@@ -80,17 +88,20 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
       debounceMs = 350,
       zIndex = 2000,
       disabled = false,
+      creatable = false,
+      createLabel = 'Create',
       style,
     },
     ref
   ) {
     // ── State ──────────────────────────────────────────────────────────────────
-    const [open, setOpen]               = useState<boolean>(false);
-    const [inputText, setInputText]     = useState<string>('');
-    const [items, setItems]             = useState<ProductItem<any>[]>([]);
+    const [open, setOpen]                     = useState<boolean>(false);
+    const [inputText, setInputText]           = useState<string>('');
+    const [items, setItems]                   = useState<ProductItem<any>[]>([]);
     const [initialLoading, setInitialLoading] = useState<boolean>(false);
     const [searchLoading, setSearchLoading]   = useState<boolean>(false);
-    const [error, setError]             = useState<string | null>(null);
+    const [error, setError]                   = useState<string | null>(null);
+    const [isCreating, setIsCreating]         = useState<boolean>(false);
 
     // ── Refs ───────────────────────────────────────────────────────────────────
     const inputRef           = useRef<TextInput>(null);
@@ -99,8 +110,15 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
     const isMounted          = useRef<boolean>(true);
 
     // ── Mount / unmount ────────────────────────────────────────────────────────
-   
-     
+    useEffect(() => {
+      isMounted.current = true;
+      return () => {
+        isMounted.current = false;
+        // Cancel any in-flight request and pending debounce on unmount
+        abortControllerRef.current?.abort();
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      };
+    }, []);
 
     // ── Ref API ────────────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
@@ -112,8 +130,11 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
     // ── Core fetch ─────────────────────────────────────────────────────────────
     const fetchProducts = useCallback(
       async (search: string = '', isInitial: boolean = false): Promise<void> => {
-        // Nothing to fetch when search is empty — just clear the list
-       
+        // FIX: guard that was missing — clear list and bail on empty search
+        if (!isInitial && search.length === 0) {
+          setItems([]);
+          return;
+        }
 
         abortControllerRef.current?.abort();
         abortControllerRef.current = new AbortController();
@@ -165,49 +186,51 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
       [url, searchParam]
     );
 
-     useEffect(() => {
-            fetchProducts('', true);
-        }, [fetchProducts]);
+    useEffect(() => {
+      fetchProducts('', true);
+    }, [fetchProducts]);
 
-    // ── Event handlers ─────────────────────────────────────────────────────────
-
+    // ── Derived: show creatable row ────────────────────────────────────────────
     /**
-     * FIX: Called when the user taps anywhere on the inputBox row —
-     * leading search icon, trailing arrow/chevron, or any padding gap.
-     *
-     * - If already open  → just re-focus the TextInput (user tapped an icon
-     *   while typing; we don't want to close the list).
-     * - If closed        → open the list and focus the input.
-     *
-     * The 50 ms delay on focus gives React Native time to ensure the
-     * TextInput is in the responder chain before we call focus().
+     * Show the "Create" row when:
+     *  - `creatable` prop is enabled
+     *  - user has typed something (trimmed, meets minSearchLength)
+     *  - no exact-name match already exists in the list
+     *  - not currently loading
      */
+    const trimmedInput = inputText.trim();
+    const showCreateRow =
+      creatable &&
+      trimmedInput.length >= minSearchLength &&
+      !searchLoading &&
+      !initialLoading &&
+      !items.some(
+        (item) => item.label.toLowerCase() === trimmedInput.toLowerCase()
+      );
+
+    // ── Handlers ───────────────────────────────────────────────────────────────
+
     const handleRowPress = (): void => {
       if (disabled) return;
-
       if (open) {
-        // Already open — bring keyboard back without toggling the list
         inputRef.current?.focus();
         return;
       }
-
       setOpen(true);
       setTimeout(() => inputRef.current?.focus(), 50);
     };
 
-    /** Called by the TextInput's own onFocus (e.g. direct tap on the text field) */
     const handleFocus = (): void => {
       if (disabled) return;
       setOpen(true);
     };
 
-    /** Debounced search on every keystroke */
     const handleChangeText = (text: string): void => {
       setInputText(text);
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
       if (text.length === 0) {
-        fetchProducts('', false);
+        setItems([]);
         return;
       }
       if (text.length < minSearchLength) return;
@@ -215,11 +238,9 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
       debounceTimer.current = setTimeout(() => fetchProducts(text, false), debounceMs);
     };
 
-    /** Select a product from the list */
     const handleSelect = (item: ProductItem<any>): void => {
       onSelect(item._raw);
       if (autoReset) {
-        // Short delay so the tap animation completes before we reset
         setTimeout(() => handleReset(), 50);
       } else {
         setOpen(false);
@@ -227,18 +248,14 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
       }
     };
 
-    /** Full reset — clear input, close list, clear results */
     const handleReset = (): void => {
       setInputText('');
       setItems([]);
       setOpen(false);
+      setIsCreating(false);
       inputRef.current?.blur();
     };
 
-    /**
-     * Delayed blur so a list-row tap registers (150 ms) before the list
-     * is dismissed by the blur event.
-     */
     const handleBlur = (): void => {
       setTimeout(() => {
         if (!isMounted.current) return;
@@ -247,15 +264,49 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
       }, 150);
     };
 
-    /** X button inside the input clears text and refocuses */
     const handleClearInput = (): void => {
       setInputText('');
       setItems([]);
-      // Re-focus so keyboard stays visible and user can type immediately
       inputRef.current?.focus();
     };
 
-    // ── Render: single list row ────────────────────────────────────────────────
+    /**
+     * Called when the user taps "Create '{name}'".
+     * Calls the `onCreate` callback with the trimmed input, then resets.
+     */
+    const handleCreate = async (): Promise<void> => {
+      if (!trimmedInput || isCreating) return;
+      setIsCreating(true);
+      try {
+        // Build a minimal synthetic product and fire onSelect immediately,
+        // matching the same shape callers expect from a real search result.
+        const syntheticProduct = {
+          name: trimmedInput,
+           label: trimmedInput,
+            value: trimmedInput,
+          price: 0,
+          quantity: 1,
+          sku: null,
+          _isNew: true,   // callers can use this flag to detect new products
+        };
+        onSelect(syntheticProduct as any);
+
+        // Also fire the optional onCreate so the parent can persist it
+        await onCreate?.(trimmedInput);
+      } finally {
+        if (isMounted.current) {
+          setIsCreating(false);
+          if (autoReset) handleReset();
+          else {
+            setOpen(false);
+            inputRef.current?.blur();
+          }
+        }
+      }
+    };
+
+    // ── Render helpers ─────────────────────────────────────────────────────────
+
     const renderItem = (item: ProductItem<any>, index: number) => (
       <React.Fragment key={item.value}>
         {index > 0 && <View style={styles.separator} />}
@@ -286,7 +337,45 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
       </React.Fragment>
     );
 
-    // ── Render: dropdown body ──────────────────────────────────────────────────
+    /**
+     * "Create '{name}'" row — shown at the bottom of the list (or alone)
+     * when `showCreateRow` is true.
+     */
+    const renderCreateRow = () => (
+      <React.Fragment>
+        {items.length > 0 && <View style={styles.separator} />}
+        <TouchableOpacity
+          style={styles.createRow}
+          onPress={handleCreate}
+          activeOpacity={0.75}
+          disabled={isCreating}
+        >
+          <View style={styles.createIconWrapper}>
+            {isCreating ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <Icon name="add" size={16} color={colors.white} />
+            )}
+          </View>
+
+          <View style={styles.listItemInfo}>
+            <Text style={styles.createRowText} numberOfLines={1}>
+              {isCreating
+                ? 'Creating…'
+                : `${createLabel} "${trimmedInput}"`}
+            </Text>
+            <Text style={styles.createRowHint}>
+              Add as a new product
+            </Text>
+          </View>
+
+          {!isCreating && (
+            <Icon name="chevron-right" size={20} color={colors.primary} />
+          )}
+        </TouchableOpacity>
+      </React.Fragment>
+    );
+
     const renderDropdownBody = () => {
       if (initialLoading) {
         return (
@@ -313,7 +402,6 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
         );
       }
 
-      // Searching but no results yet — show spinner inline
       if (searchLoading) {
         return (
           <View style={styles.stateBox}>
@@ -323,7 +411,8 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
         );
       }
 
-      if (items.length === 0 && inputText.length > 0) {
+      // No results and no creatable option → empty state
+      if (items.length === 0 && !showCreateRow && inputText.length > 0) {
         return (
           <View style={styles.stateBox}>
             <Icon name="inventory-2" size={30} color={colors.gray300} />
@@ -332,8 +421,15 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
         );
       }
 
-      // Empty state before the user starts typing
-      
+      // Prompt before the user starts typing
+      if (items.length === 0 && inputText.length === 0) {
+        return (
+          <View style={styles.stateBox}>
+            <Icon name="search" size={28} color={colors.gray300} />
+            <Text style={styles.stateText}>Type to search products</Text>
+          </View>
+        );
+      }
 
       return (
         <ScrollView
@@ -342,6 +438,7 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
           nestedScrollEnabled
         >
           {items.map((item, index) => renderItem(item, index))}
+          {showCreateRow && items.length === 0 && renderCreateRow()}
         </ScrollView>
       );
     };
@@ -353,16 +450,6 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
 
         {/* ── Input row ── */}
         <View style={styles.inputRow}>
-
-          {/*
-           * FIX: The entire inputBox is now a TouchableOpacity.
-           * Tapping the search icon, the chevron arrow, or any padding
-           * gap all call handleRowPress → inputRef.current?.focus().
-           *
-           * accessible={false}  — prevents VoiceOver announcing a
-           *   redundant "button" wrapper on top of the TextInput.
-           * activeOpacity={0.85} — subtle press feedback on the whole row.
-           */}
           <TouchableOpacity
             style={[
               styles.inputBox,
@@ -373,15 +460,12 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
             activeOpacity={0.85}
             accessible={false}
           >
-            {/* Leading search icon — pointer events flow up to the outer
-                TouchableOpacity, so this tap is handled by handleRowPress */}
             <Icon
               name="search"
               size={20}
               color={open ? colors.primary : colors.gray400}
             />
 
-            {/* Text input — direct tap still triggers handleFocus normally */}
             <TextInput
               ref={inputRef}
               style={styles.textInput}
@@ -397,17 +481,10 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
               editable={!disabled}
             />
 
-            {/* Trailing area */}
             <View style={styles.trailingArea}>
               {searchLoading && open ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : inputText.length > 0 ? (
-                /*
-                 * Clear (X) button — activeOpacity={1} so the outer row's
-                 * dim is the only visual feedback. RN gives touch priority
-                 * to the innermost responder, so this fires handleClearInput
-                 * and NOT handleRowPress.
-                 */
                 <TouchableOpacity
                   onPress={handleClearInput}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -417,10 +494,6 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
                   <Icon name="close" size={18} color={colors.gray400} />
                 </TouchableOpacity>
               ) : (
-                /*
-                 * Chevron arrow — no separate onPress needed. The outer
-                 * TouchableOpacity routes the tap to handleRowPress.
-                 */
                 <Icon
                   name={open ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
                   size={22}
@@ -430,11 +503,12 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
             </View>
           </TouchableOpacity>
 
-          {/* Optional barcode button */}
+          {/* Barcode button — always shown when showBarcodeBtn=true.
+              onPress is guarded so it's a no-op when no handler is provided. */}
           {showBarcodeBtn && (
             <TouchableOpacity
               style={[styles.barcodeBtn, disabled && styles.inputBoxDisabled]}
-              onPress={onBarcodePress}
+              onPress={() => onBarcodePress?.()}
               activeOpacity={0.7}
               disabled={disabled}
             >
@@ -455,7 +529,6 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
 );
 
 export default ProductDropdown;
-
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -579,6 +652,34 @@ const styles = StyleSheet.create({
     color: colors.gray700,
     minWidth: 54,
     textAlign: 'right',
+  },
+
+  // ── Create row ─────────────────────────────────────────────────────────────
+  createRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#f0fdf4',  // subtle green tint to distinguish from normal rows
+  },
+  createIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  createRowText: {
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  createRowHint: {
+    fontSize: 11,
+    color: colors.gray400,
+    marginTop: 3,
   },
 
   // ── State boxes ────────────────────────────────────────────────────────────

@@ -1,9 +1,14 @@
+import { Contact } from './contact';
+import { Currency } from './Currency';
+import { Cart, ShippingDataType } from './Inventory';
+
 export interface LotFilters {
   searchQuery: string;
   lotStatus: string;
   processes: any[];
   contacts: string[];
   isSubLot: boolean;
+  isLedgerScreen?: boolean;
 }
 
 export interface FetchParams {
@@ -52,6 +57,8 @@ export interface Claims {
   cost: number;
 }
 export interface InventoryItem {
+  parent_step: number | null;
+  parent_id: number | null;
   id: number;
   lot_id: number;
   status: string;
@@ -78,4 +85,50 @@ export interface PaginatedResponse {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
   };
+}
+
+export type SourceType = 'stock' | 'purchase';
+export type ProcessId = 'cutting' | 'stitching' | 'washing' | 'packaging';
+
+export interface Process {
+  id: number;
+  name: string;
+}
+
+export interface LotFormData {
+  lot_number: string;
+  source: SourceType;
+  contact: Contact | null;
+  consum_products?: ConsumeProduct[];
+  cart: Cart[];
+  quantity: string;
+  process: Process | null;
+  invoice_number: string;
+  discount: number | null;
+  date: Date | string;
+  remarks: string;
+  manufacturer: Contact | null;
+  mixed_cart: Cart[];
+  shipping: ShippingDataType;
+  currency: Currency | null;
+}
+export interface ConsumeProduct {
+  id: number;
+  name: string;
+  supplied_qty: number;
+  quantity: number;
+  cost: number;
+  price: number;
+  unit: string;
+  used_qty: number;
+  issue_id: number;
+  totalConsumed?: number;
+}
+
+export type FormKey = keyof LotFormData;
+
+export interface LotStatus {
+  provided: number;
+  consumed: number;
+  claimed: number;
 }

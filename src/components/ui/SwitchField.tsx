@@ -8,6 +8,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { colors } from '../../theme/colors';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,8 +43,8 @@ const SwitchField: React.FC<SwitchFieldProps> = ({
   iconFalse,
   iconTrue,
   disabled    = false,
-  colorTrue   = COLORS.brand,
-  colorFalse  = COLORS.red,
+  colorTrue   = colors.danger,
+  colorFalse  = colors.primary,
 }) => {
 
   // ── Measure track so we can use real pixel values ─────────────────────────

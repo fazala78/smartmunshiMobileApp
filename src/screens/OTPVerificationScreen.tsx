@@ -17,6 +17,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
+import { getLastContactsSyncTime, getLastProductsSyncTime, setLastContactsSyncTime, setLastProductsSyncTime } from '../services/storage';
+import { fetchAllContacts } from '../services/contactService';
+import { fetchAllProducts } from '../services/ProductService';
 
 type Props = {
   route: {
@@ -71,7 +74,7 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
 
       // Ensure we don't return negative values
       return Math.max(0, diffInSeconds);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       return 30; // Default 30 seconds on error
     }
@@ -171,7 +174,7 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
         // Save token if provided
         if (response.data.token) {
           await AsyncStorage.setItem('authToken', response.data.token);
-         
+
         }
 
         // Save user data if available
@@ -179,6 +182,24 @@ const OTPVerificationScreen: React.FC<Props> = ({ route }) => {
           await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
           await AsyncStorage.setItem('selectedBranch', JSON.stringify(response.data.user.branches[0]));
           await AsyncStorage.setItem('currencies', JSON.stringify(response.data.currencies));
+          await AsyncStorage.setItem('processes', JSON.stringify(response.data.processes));
+          await AsyncStorage.setItem('permissions', JSON.stringify(response.data.permissions));
+          const lastContactsSyncTime = getLastContactsSyncTime();
+          const lastProductsSyncTime = getLastProductsSyncTime();
+          const now = new Date().toISOString();
+
+          const results = await Promise.allSettled([
+            fetchAllContacts({ limit: 30, since: lastContactsSyncTime || undefined }),
+            fetchAllProducts({ limit: 30, since: lastProductsSyncTime || undefined }),
+          ]);
+
+          // Update sync times only if fetch was successful
+          if (results[0].status === 'fulfilled') {
+            setLastContactsSyncTime(now);
+          }
+          if (results[1].status === 'fulfilled') {
+            setLastProductsSyncTime(now);
+          }
         }
 
         // Clear temporary user data

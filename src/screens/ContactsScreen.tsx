@@ -111,7 +111,6 @@ const ContactsScreen: React.FC<Props> = ({ navigation }) => {
         const nextPage = lastPage.pagination.hasNextPage
           ? lastPage.pagination.currentPage + 1
           : undefined;
-        console.log('🔢 Next page param:', nextPage, 'Current:', lastPage.pagination.currentPage);
         return nextPage;
       }
 

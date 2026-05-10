@@ -113,3 +113,48 @@ export interface CategoryPivotType {
 export interface Location {
   name: string;
 }
+
+export interface ProductFilter {
+  query: string;
+  searchQuery: string;
+  categories: string[];
+}
+export interface ProductTransaction {
+  id: number;
+  debit: number;
+  credit: number;
+  date: string | null;
+  transaction_id: number;
+  transaction_type: string;
+  display_name: string;
+  route: string;
+  contact: string | null;
+  lot?: string | null;
+  quantity?: number | null;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  balance: number;
+  price: number;
+  unit: string;
+  quantity?: number | null;
+}
+
+export interface ProductTransactionPaginatedResponse {
+  data: ProductTransaction[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export interface ProductTransactionTypes {
+  label: string;
+  value: string;
+}

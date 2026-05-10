@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { typography } from '../theme';
+import { colors, typography } from '../theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface ModalHeaderProps {
@@ -36,7 +36,15 @@ const styles = StyleSheet.create({
 
 
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
-    iconButton: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+    
+    iconButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: colors.gray100,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
     closeIcon: { fontSize: 24, color: '#111813', fontWeight: '300' },
     headerCenter: { flex: 1, alignItems: 'center' },
     invoiceNumber: {

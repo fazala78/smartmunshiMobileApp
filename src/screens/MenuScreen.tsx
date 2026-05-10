@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { logout } from '../services/authService';
+import { clearAllStorage } from '../services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BottomNavigation from '../components/BottomNavigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,7 +80,8 @@ const MENU_SECTIONS: MenuSection[] = [
     {
         title: 'REPORTS',
         items: [
-            { icon: 'inventory-2', label: 'Journal', screen: 'Journal', bg: colors.primaryMuted, color: colors.primary },
+            { icon: 'menu-book', label: 'Journal', screen: 'Journal', bg: colors.surfaceMuted, color: colors.textSecondary },
+              { icon: 'inventory', label: 'Products', screen: 'products', bg: colors.primaryMuted, color: colors.primary },
            
         ],
     },
@@ -199,9 +201,10 @@ const MenuScreen: React.FC<Props> = ({ navigation }) => {
         setLogoutVisible(false);
         const response = await logout();
         if (response.success) {
-            await AsyncStorage.removeItem('authToken');
-            await AsyncStorage.removeItem('user');
-            await AsyncStorage.removeItem('selectedBranch');
+            // Clear AsyncStorage
+            await AsyncStorage.multiRemove(['authToken', 'user', 'selectedBranch']);
+            // Clear MMKV cache (contacts, products, sync times, etc.)
+            clearAllStorage();
             navigation.replace('Login');
         }
     };

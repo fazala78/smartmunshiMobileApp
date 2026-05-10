@@ -1,3 +1,4 @@
+ENV['RCT_NEW_ARCH_ENABLED'] = '1'
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
@@ -19,7 +20,8 @@ target 'SmartMunshiMobile' do
 
  use_react_native!(
   :path => config[:reactNativePath],
-  :new_arch_enabled => false
+  :new_arch_enabled => false,
+  :hermes_enabled => true 
 )
 
   post_install do |installer|

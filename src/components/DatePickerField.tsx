@@ -67,7 +67,7 @@ const DatePickerField: React.FC<DatePickerProps> = ({
       const marked: Record<string, any> = {};
 
       if (rangeStart && !rangeEnd) {
-        marked[rangeStart] = { startingDay: true, endingDay: true, color: COLORS.brand, textColor: '#fff' };
+        marked[rangeStart] = { startingDay: true, endingDay: true, color: colors.primary, textColor: colors.white };
       } else if (rangeStart && rangeEnd) {
         const start = new Date(rangeStart);
         const end   = new Date(rangeEnd);
@@ -77,8 +77,8 @@ const DatePickerField: React.FC<DatePickerProps> = ({
           const isStart = key === rangeStart;
           const isEnd   = key === rangeEnd;
           marked[key] = {
-            color:       isStart || isEnd ? COLORS.brand : COLORS.brandLight,
-            textColor:   isStart || isEnd ? '#fff' : COLORS.brandDark,
+            color:       isStart || isEnd ? colors.primary : colors.primaryLight,
+            textColor:   isStart || isEnd ? colors.white : colors.primaryDark,
             startingDay: isStart,
             endingDay:   isEnd,
           };
@@ -91,7 +91,7 @@ const DatePickerField: React.FC<DatePickerProps> = ({
     if (!value) return {};
     return {
       [toCalendarString(value)]: {
-        selected: true, selectedColor: COLORS.brand, selectedTextColor: '#fff',
+        selected: true, selectedColor: colors.primary, selectedTextColor: colors.white,
       },
     };
   };
@@ -150,7 +150,7 @@ const DatePickerField: React.FC<DatePickerProps> = ({
         onPress={() => !disabled && setOpen(true)}
         activeOpacity={0.7}
       >
-        <Icon name="calendar-today" size={18} color={hasValue ? COLORS.brand : COLORS.gray400} />
+        <Icon name="calendar-today" size={18} color={hasValue ? colors.primary : colors.gray400} />
         <Text style={[styles.triggerText, !hasValue && styles.placeholder]} numberOfLines={1}>
           {displayText()}
         </Text>
@@ -159,10 +159,10 @@ const DatePickerField: React.FC<DatePickerProps> = ({
             onPress={() => onChange(null)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="close" size={16} color={COLORS.gray400} />
+            <Icon name="close" size={16} color={colors.gray400} />
           </TouchableOpacity>
         ) : (
-          <Icon name="keyboard-arrow-down" size={20} color={COLORS.gray400} />
+          <Icon name="keyboard-arrow-down" size={20} color={colors.gray400} />
         )}
       </TouchableOpacity>
 
@@ -191,7 +191,7 @@ const DatePickerField: React.FC<DatePickerProps> = ({
               )}
             </View>
             <TouchableOpacity onPress={() => setOpen(false)} style={styles.sheetClose}>
-              <Icon name="close" size={20} color={COLORS.gray500} />
+              <Icon name="close" size={20} color={colors.gray500} />
             </TouchableOpacity>
           </View>
 
@@ -205,22 +205,22 @@ const DatePickerField: React.FC<DatePickerProps> = ({
             markedDates={getMarkedDates()}
             enableSwipeMonths
             theme={{
-              backgroundColor:            '#ffffff',
-              calendarBackground:         '#ffffff',
-              selectedDayBackgroundColor: COLORS.brand,
-              selectedDayTextColor:       '#ffffff',
-              todayTextColor:             COLORS.brand,
-              dayTextColor:               COLORS.gray800,
-              textDisabledColor:          COLORS.gray300,
-              dotColor:                   COLORS.brand,
-              monthTextColor:             COLORS.gray900,
+              backgroundColor:            colors.white,
+              calendarBackground:         colors.white,
+              selectedDayBackgroundColor: colors.primary,
+              selectedDayTextColor:       colors.white,
+              todayTextColor:             colors.primary,
+              dayTextColor:               colors.gray800,
+              textDisabledColor:          colors.gray300,
+              dotColor:                   colors.primary,
+              monthTextColor:             colors.gray900,
               textMonthFontWeight:        '800' as any,
               textMonthFontSize:          16,
               textDayFontSize:            14,
               textDayFontWeight:          '500' as any,
               textDayHeaderFontWeight:    '700' as any,
               textDayHeaderFontSize:      12,
-              arrowColor:                 COLORS.brand,
+              arrowColor:                 colors.primary,
             }}
           />
 
@@ -247,17 +247,7 @@ const DatePickerField: React.FC<DatePickerProps> = ({
 export default DatePickerField;
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
-const COLORS = {
-  brand:     '#13ec5b',
-  brandDark: '#0fd852',
-  brandLight:'#dcfce7',
-  gray900:   '#111827',
-  gray800:   '#1f2937',
-  gray500:   '#6b7280',
-  gray400:   '#9ca3af',
-  gray300:   '#d1d5db',
-  gray200:   '#e5e7eb',
-};
+
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -276,8 +266,8 @@ const styles = StyleSheet.create({
     borderColor:       colors.gray200,
   },
   triggerDisabled: { opacity: 0.5 },
-  triggerText:     { flex: 1, fontSize: 14, fontWeight: '500', color: COLORS.gray800 },
-  placeholder:     { color: COLORS.gray400 },
+  triggerText:     { flex: 1, fontSize: 14, fontWeight: '500', color: colors.gray800 },
+  placeholder:     { color: colors.gray400 },
 
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
 
@@ -286,7 +276,7 @@ const styles = StyleSheet.create({
     bottom:               0,
     left:                 0,
     right:                0,
-    backgroundColor:      '#fff',
+    backgroundColor:      colors.white,
     borderTopLeftRadius:  24,
     borderTopRightRadius: 24,
     paddingBottom:        32,
@@ -305,15 +295,15 @@ const styles = StyleSheet.create({
     paddingTop:        20,
     paddingBottom:     14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
+    borderBottomColor: colors.gray200,
   },
-  sheetTitle: { fontSize: 17, fontWeight: '800', color: COLORS.gray900 },
-  sheetHint:  { fontSize: 12, color: COLORS.gray500, marginTop: 3 },
+  sheetTitle: { fontSize: 17, fontWeight: '800', color: colors.gray900 },
+  sheetHint:  { fontSize: 12, color: colors.gray500, marginTop: 3 },
   sheetClose: {
     width:           32,
     height:          32,
     borderRadius:    16,
-    backgroundColor: COLORS.gray200,
+    backgroundColor: colors.gray200,
     justifyContent:  'center',
     alignItems:      'center',
   },
@@ -324,14 +314,14 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
     gap:             8,
-    backgroundColor: COLORS.brand,
+    backgroundColor: colors.primary,
     borderRadius:    40,
     paddingVertical: 14,
-    shadowColor:     COLORS.brand,
+    shadowColor:     colors.primary,
     shadowOffset:    { width: 0, height: 4 },
     shadowOpacity:   0.35,
     shadowRadius:    10,
     elevation:       6,
   },
-  confirmBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  confirmBtnText: { fontSize: 15, fontWeight: '800', color: colors.white },
 });

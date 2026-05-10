@@ -19,7 +19,7 @@ import LotCard from '../components/assembly/LotCard';
 import Loading from '../components/common/Loading';
 import Empty from '../components/common/Empty';
 import { RootStackParamList } from '../types/navigation';
-import { ActionKey, InventoryItem } from '../types/assembly';
+import { InventoryItem } from '../types/assembly';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'subLots'>;
 
@@ -79,10 +79,7 @@ const AssemblySubLots: React.FC<Props> = ({ route, navigation }) => {
         });
     }, [navigation, depth]);
 
-    const handleAction = useCallback((key: ActionKey, itemId: string | number): void => {
-        console.log(`Action "${key}" on item ${itemId} at depth ${depth}`);
-    }, [depth]);
-
+   
     // ─── FlatList callbacks ───────────────────────────────────────────────
 
     const handleEndReached = useCallback((): void => {
@@ -97,11 +94,10 @@ const AssemblySubLots: React.FC<Props> = ({ route, navigation }) => {
         ({ item }: ListRenderItemInfo<InventoryItem>) => (
             <LotCard
                 item={item} 
-                onAction={handleAction}
                 onTitlePress={handleTitlePress}
             />
         ),
-        [handleAction, handleTitlePress],
+        [ handleTitlePress],
     );
 
     const renderFooter = useCallback(

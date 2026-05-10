@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardTypeOptions,
+  View,
+  type KeyboardTypeOptions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography } from '../../theme';
@@ -18,8 +18,8 @@ export interface InputFieldProps {
   value:             string | number | null | undefined;
   onChangeText:      (value: string) => void;
 
-  /** 'gray' — renders on a gray background (white input)
-   *  'white' — renders on a white background (gray input)
+  /** 'gray' — component sits on gray bg  → input surface is white
+   *  'white' — component sits on white bg → input surface is light gray
    *  Default: 'white' */
   bg?:               'gray' | 'white';
   type?:             FieldType;
@@ -44,7 +44,7 @@ export interface InputFieldProps {
   textAlign?:        'left' | 'center' | 'right';
 }
 
-// ─── Keyboard type map ────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const KEYBOARD_MAP: Record<FieldType, KeyboardTypeOptions> = {
   text:     'default',
@@ -55,7 +55,10 @@ const KEYBOARD_MAP: Record<FieldType, KeyboardTypeOptions> = {
   password: 'default',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+/** Characters allowed in a decimal field — digits, one dot, optional leading minus */
+const DECIMAL_REGEX = /^-?\d*\.?\d*$/;
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const InputField: React.FC<InputFieldProps> = ({
   value,
@@ -83,34 +86,83 @@ const InputField: React.FC<InputFieldProps> = ({
   const [focused,       setFocused]       = useState(false);
   const [secureVisible, setSecureVisible] = useState(false);
 
-  // ── Ref — lets the wrapper TouchableOpacity programmatically focus ─────────
-  const inputRef = useRef<TextInput>(null);
+  // ── Decimal buffer ────────────────────────────────────────────────────────
+  //
+  // Problem: callers store the parsed float in state, e.g. payload.discount = 12.
+  // When they pass value={String(12)} the trailing dot is already gone, so typing
+  // "12." → parseFloat → 12 → String(12) → "12" on next render: dot never appears.
+  //
+  // Fix: for decimal fields we keep a local raw string (rawDecimal) that the
+  // TextInput actually displays. We only sync it from the parent when the
+  // *numeric* value changes — so the buffer survives in-progress typing ("12.").
+  //
+  const isDecimal    = type === 'decimal';
+  const inputRef     = useRef<TextInput>(null);
+  const [rawDecimal, setRawDecimal] = useState<string>(
+    value != null && value !== '' ? String(value) : ''
+  );
 
-  const isPassword   = type === 'password';
-  const isNumber     = type === 'number' || type === 'decimal';
+  // Sync buffer when parent pushes a genuinely different numeric value
+  // (e.g. "Mark as paid" auto-fills the amount from outside).
+  // We compare parsed floats so that "12." and "12" are treated as equal
+  // and we don't clobber the buffer while the user is still typing.
+  useEffect(() => {
+    if (!isDecimal) return;
+    const incoming = value != null && value !== '' ? String(value) : '';
+    const incomingNum = parseFloat(incoming);
+    const bufferNum   = parseFloat(rawDecimal);
+
+    // Only overwrite the buffer when the numeric value genuinely changed
+    // from outside (NaN === NaN is false, so empty → empty is handled too).
+    const numericallySame =
+      (!isNaN(incomingNum) && !isNaN(bufferNum) && incomingNum === bufferNum) ||
+      (isNaN(incomingNum) && isNaN(bufferNum));
+
+    if (!numericallySame) {
+      setRawDecimal(incoming);
+    }
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Derived display value (non-decimal types) ─────────────────────────────
   const displayValue = value != null ? String(value) : '';
 
-  // ── Theming ────────────────────────────────────────────────────────────────
+  // ── Theming ───────────────────────────────────────────────────────────────
   const inputBg     = bg === 'gray' ? colors.white : colors.backgroundLight;
-  const borderColor = focused ? colors.borderFocus : colors.gray200;
-  const borderWidth = 1.5;
-  const hasError    = !!error;
+  const borderColor = error ? colors.danger : focused ? colors.borderFocus : colors.gray200;
 
-  /**
-   * FIX: Called when the user taps the wrapper row — icon, padding, label area.
-   * Focuses the hidden TextInput so the keyboard opens immediately.
-   * The 50 ms delay gives RN time to register the touch before focusing.
-   */
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  /** Tap anywhere on the row → focus the hidden TextInput */
   const handleRowPress = () => {
     if (disabled) return;
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const handleDecimalChange = (text: string) => {
+    // Reject characters that can never form a valid decimal number
+    if (!DECIMAL_REGEX.test(text)) return;
+
+    setRawDecimal(text); // always update display immediately
+
+    // Only call parent when the text represents a complete, valid number.
+    // "12." is still in-progress — we pass it up as-is so the parent can
+    // use parseFloat() safely; trailing dot parses to 12 on their side.
+    onChangeText(text);
+  };
+
+  const handleChange = (text: string) => {
+    if (isDecimal) {
+      handleDecimalChange(text);
+    } else {
+      onChangeText(text);
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={styles.wrapper}>
 
-      {/* Label — tapping it also focuses the input */}
+      {/* Label */}
       {!!label && (
         <TouchableOpacity onPress={handleRowPress} activeOpacity={1}>
           <Text style={[styles.label, disabled && styles.labelDisabled]}>
@@ -119,24 +171,12 @@ const InputField: React.FC<InputFieldProps> = ({
         </TouchableOpacity>
       )}
 
-      {/*
-       * FIX: inputBox is now a TouchableOpacity instead of a plain View.
-       *
-       * Tapping the left icon, right icon area, or any horizontal padding
-       * gap now all route to handleRowPress → inputRef.current?.focus().
-       *
-       * accessible={false}  — prevents VoiceOver announcing a redundant
-       *   "button" on top of the already-accessible TextInput.
-       * activeOpacity={0.9} — subtle press feedback on the whole row.
-       *
-       * Inner buttons (password toggle, iconRight) use activeOpacity={1}
-       * so only the outer wrapper dims on press — no double-dim.
-       */}
+      {/* Input row — entire row is tappable to focus */}
       <TouchableOpacity
         style={[
           styles.inputBox,
-          { backgroundColor: inputBg, borderColor, borderWidth },
-          hasError  && styles.inputBoxError,
+          { backgroundColor: inputBg, borderColor, borderWidth: 1.5 },
+          !!error   && styles.inputBoxError,
           disabled  && styles.inputBoxDisabled,
           multiline && { alignItems: 'flex-start', paddingVertical: 10 },
         ]}
@@ -159,19 +199,21 @@ const InputField: React.FC<InputFieldProps> = ({
           ref={inputRef}
           style={[
             styles.input,
-            isNumber  && styles.inputNumber,
+            type === 'number' && styles.inputNumber,
             multiline && { minHeight: numberOfLines * 22, textAlignVertical: 'top' },
             disabled  && styles.inputDisabled,
             { textAlign },
           ]}
-          value={displayValue}
-          onChangeText={onChangeText}
+          // Decimal fields use the buffer; everything else uses the prop directly.
+          value={isDecimal ? rawDecimal : displayValue}
+          onChangeText={handleChange}
           placeholder={placeholder}
           placeholderTextColor={colors.gray400}
           keyboardType={KEYBOARD_MAP[type]}
-          secureTextEntry={isPassword && !secureVisible}
+          secureTextEntry={type === 'password' && !secureVisible}
           autoCapitalize={
-            autoCapitalize ?? (type === 'email' ? 'none' : isNumber ? 'none' : 'sentences')
+            autoCapitalize ??
+            (type === 'email' ? 'none' : isDecimal || type === 'number' ? 'none' : 'sentences')
           }
           autoCorrect={type === 'text'}
           returnKeyType={returnKeyType}
@@ -184,11 +226,8 @@ const InputField: React.FC<InputFieldProps> = ({
           onBlur={()  => { setFocused(false); onBlur?.();  }}
         />
 
-        {/* Right — password toggle
-            activeOpacity={1}: outer wrapper already dims; no double-dim here.
-            RN gives touch priority to the innermost responder so this fires
-            setSecureVisible, NOT handleRowPress. */}
-        {isPassword && (
+        {/* Password toggle */}
+        {type === 'password' && (
           <TouchableOpacity
             onPress={() => setSecureVisible((v) => !v)}
             style={styles.iconRight}
@@ -203,9 +242,8 @@ const InputField: React.FC<InputFieldProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Right — custom icon
-            Same activeOpacity={1} reasoning as above. */}
-        {!isPassword && !!iconRight && (
+        {/* Custom right icon */}
+        {type !== 'password' && !!iconRight && (
           <TouchableOpacity
             onPress={onIconRightPress}
             style={styles.iconRight}
@@ -219,15 +257,15 @@ const InputField: React.FC<InputFieldProps> = ({
       </TouchableOpacity>
 
       {/* Error */}
-      {hasError && (
+      {!!error && (
         <View style={styles.errorRow}>
           <Icon name="error-outline" size={13} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
-      {/* Hint */}
-      {!hasError && !!hint && (
+      {/* Hint (only when no error) */}
+      {!error && !!hint && (
         <Text style={styles.hint}>{hint}</Text>
       )}
 
@@ -238,8 +276,9 @@ const InputField: React.FC<InputFieldProps> = ({
 export default InputField;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  wrapper: { gap: 6 },
+  wrapper: { gap: 6 , flex:1},
 
   label: {
     fontSize:      10,
@@ -258,7 +297,7 @@ const styles = StyleSheet.create({
     minHeight:         48,
     gap:               8,
   },
-  inputBoxError:    { borderWidth: 1.5, borderColor: colors.danger, backgroundColor: colors.errorBg },
+  inputBoxError:    { borderColor: colors.danger, backgroundColor: colors.errorBg },
   inputBoxDisabled: { opacity: 0.5 },
 
   input: {

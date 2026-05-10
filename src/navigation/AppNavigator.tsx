@@ -31,6 +31,25 @@ import DailyCashReportScreen from '../screens/DailyCashReportScreen';
 import { ContactSyncProvider } from '../context/ContactSyncContext';
 import AssemblySubLots from '../screens/AssemblySubLots';
 import AssemblyScreen from '../screens/AssemblyScreen';
+import { fetchAllContacts } from '../services/contactService';
+import { fetchAllProducts } from '../services/ProductService';
+import {
+  getLastContactsSyncTime,
+  setLastContactsSyncTime,
+  getLastProductsSyncTime,
+  setLastProductsSyncTime,
+} from '../services/storage';
+import AddLotScreen from '../screens/AddLotScreen';
+import NextProcessScreen from '../screens/NextProcessScreen';
+import Stockify from '../screens/Stockify';
+import IssueStock from '../screens/IssueStock';
+import ClaimScreen from '../screens/ClaimScreen';
+import VendorsScreen from '../screens/VendorsScreen';
+import LotProcessingLedger from '../screens/LotProcessingLedger';
+import ProductsScreen from '../screens/ProductsScreen';
+import ProductLedgerScreen from '../screens/ProductLedgerScreen';
+import RawProductsScreen from '../screens/RawProductsScreen';
+import RawProductLedgerScreen from '../screens/RawProductLedgerScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -58,12 +77,30 @@ const AppNavigator: React.FC = () => {
         const authToken = await AsyncStorage.getItem('authToken');
         if (authToken && tenantKey) {
           setInitialRoute('Home');
+
+          // Get last sync times and perform incremental sync
+          const lastContactsSyncTime = getLastContactsSyncTime();
+          const lastProductsSyncTime = getLastProductsSyncTime();
+          const now = new Date().toISOString();
+
+          const results = await Promise.allSettled([
+            fetchAllContacts({ limit: 30, since: lastContactsSyncTime || undefined }),
+            fetchAllProducts({ limit: 30, since: lastProductsSyncTime || undefined }),
+          ]);
+
+          // Update sync times only if fetch was successful
+          if (results[0].status === 'fulfilled') {
+            setLastContactsSyncTime(now);
+          }
+          if (results[1].status === 'fulfilled') {
+            setLastProductsSyncTime(now);
+          }
         } else if (tenantKey) {
           setInitialRoute('Login');
         } else {
           setInitialRoute('TenantVerification');
         }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (e) {
         setInitialRoute('TenantVerification');
       } finally {
@@ -79,37 +116,48 @@ const AppNavigator: React.FC = () => {
   }
 
   return (
-       <ContactSyncProvider>
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName={initialRoute}>
-     
-        <Stack.Screen name="TenantVerification" component={TenantVerificationScreen} options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="Menu" component={MenuScreen} options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false, headerBackVisible: false }} />
-        <Stack.Screen name="Journal" component={JournalScreen} options={{ headerShown: false, headerBackVisible: false }} />
-        <Stack.Screen name="ContactLedger" component={ContactLedger} options={{ headerShown: false, headerBackVisible: false }} />
-        <Stack.Screen name="Contacts" component={ContactsScreen} options={{ headerShown: false, headerBackVisible: true }} />
-        <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="Billing" component={BillingScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="ReceivePayment" component={ReceivePaymentScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="PayPayment" component={PayPaymentScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="PayExpense" component={ExpenseScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="BankTransaction" component={BankPaymentScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="AddContact" component={AddContactScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="AddProduct" component={AddProductScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="ChequeList" component={ChequeListScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="JournalEntry" component={JournalEntryScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="inventoryTransaction" component={InventoryTransactionsScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="receivePaymentList" component={PaymentsListScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="bankPayments" component={BankPaymentListScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="expensePayment" component={ExpensePaymentListScreen} options={{ headerShown: false, gestureEnabled: true }} />
-         <Stack.Screen name="dailyCashReport" component={DailyCashReportScreen} options={{ headerShown: false, gestureEnabled: true }} />
-        <Stack.Screen name="Assembly" component={AssemblyScreen} options={{ headerShown: false, gestureEnabled: true }} />
-         <Stack.Screen name="subLots"    component={AssemblySubLots} options={{ headerShown: false, gestureEnabled: true }} />
-      </Stack.Navigator>
-    </NavigationContainer>
-     </ContactSyncProvider>
+    <ContactSyncProvider>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName={initialRoute}>
+
+          <Stack.Screen name="TenantVerification" component={TenantVerificationScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="Menu" component={MenuScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false, headerBackVisible: false }} />
+          <Stack.Screen name="Journal" component={JournalScreen} options={{ headerShown: false, headerBackVisible: false }} />
+          <Stack.Screen name="ContactLedger" component={ContactLedger} options={{ headerShown: false, headerBackVisible: false }} />
+          <Stack.Screen name="Contacts" component={ContactsScreen} options={{ headerShown: false, headerBackVisible: true }} />
+          <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="Billing" component={BillingScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="ReceivePayment" component={ReceivePaymentScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="PayPayment" component={PayPaymentScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="PayExpense" component={ExpenseScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="BankTransaction" component={BankPaymentScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="AddContact" component={AddContactScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="AddProduct" component={AddProductScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="ChequeList" component={ChequeListScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="JournalEntry" component={JournalEntryScreen} options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="inventoryTransaction" component={InventoryTransactionsScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="receivePaymentList" component={PaymentsListScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="bankPayments" component={BankPaymentListScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="expensePayment" component={ExpensePaymentListScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="dailyCashReport" component={DailyCashReportScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="Assembly" component={AssemblyScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="subLots" component={AssemblySubLots} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="addLot" component={AddLotScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="nextProcess" component={NextProcessScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="stockify" component={Stockify} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="issueStock" component={IssueStock} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="claim" component={ClaimScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="vendors" component={VendorsScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="lotLedger" component={LotProcessingLedger} options={{ headerShown: false, gestureEnabled: true }} />
+           <Stack.Screen name="products" component={ProductsScreen} options={{ headerShown: false, gestureEnabled: true }} />
+            <Stack.Screen name="productLedger" component={ProductLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+             <Stack.Screen name="rawProducts" component={RawProductsScreen} options={{ headerShown: false, gestureEnabled: true }} />
+               <Stack.Screen name="rawProductLedger" component={RawProductLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ContactSyncProvider>
   );
 };
 

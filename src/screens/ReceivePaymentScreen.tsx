@@ -12,7 +12,6 @@ import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
 import { PaymentPayload } from '../types/payments';
 import PaymentMethods from '../components/PaymentMethods';
-import AsyncDropdown from '../components/AsyncDropdown';
 import useCurrency from '../utils/currency';
 import { toDateString } from '../utils/stringUtils';
 import PaymentReceipt from './modals/PaymentReceipt';
@@ -22,6 +21,7 @@ import { PaymentResource } from '../types/receipt';
 import { createReceivePayment } from '../services/paymentService';
 import { Contact } from '../types/contact';
 import { useSuccessSound } from '../utils/useSuccessSound';
+import LocalDropdown from '../components/LocallDropdown';
 
 type PaymentMethod = 'cash' | 'online' | 'cheque';
 
@@ -59,14 +59,14 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
     const [createdSlip, setCreatedSlip] = useState<PaymentResource | null>(null);
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
-    const {play} = useSuccessSound();
+    const { play } = useSuccessSound();
     let resetSwipe: (() => void) | null = null;
 
     const update = (fields: Partial<PaymentPayload>) =>
         setPayload((prev) => ({ ...prev, ...fields }));
 
     const showError = (message: string) => {
-          setFooterError(message);
+        setFooterError(message);
         // Auto-clear after 4 s
         setTimeout(() => setFooterError(null), 4000);
     };
@@ -140,12 +140,12 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
 
     }
 
-     const handleAddNew = () => {
+    const handleAddNew = () => {
         setCreatedSlip(null);
         setReceiptModalVisible(false);
         setPayload(INITIAL_PAYLOAD);
     }
-    
+
 
 
     // eslint-disable-next-line react/no-unstable-nested-components
@@ -165,17 +165,17 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
                 <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                     {/* Contact */}
-                    <AsyncDropdown
-                        url="/search-contact"
-                        searchParam="q"
-                        minSearchLength={3}
-                        creatable={false}
-                        label="Select Customer"
-                        value={payload.contact as unknown as Contact}
-                        leadingIconName="person-search"
+                    <LocalDropdown<Contact>
+                        label="Contact"
                         inputBg={colors.backgroundLight}
+                        value={payload.contact as unknown as Contact}  // ← shows chip if set
+                        creatable
+                        createLabel="Select Contact"
                         onSelect={(v) => update({ contact: v as unknown as Contact })}
+                        labelResolver={(c) => c.name}
+                        subLabelResolver={(c) => c.phone}
                     />
+
                     <PaymentMethods update={update} payload={payload} methods={METHODS} />
 
                     <View style={{ height: 32 }} />

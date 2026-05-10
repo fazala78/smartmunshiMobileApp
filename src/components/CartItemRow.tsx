@@ -13,11 +13,12 @@ import { Cart } from '../types/Inventory';
 export interface CartItemRowProps {
   item: Cart;
   index: number;
+  showPrice?: string;
   onPress: (item: Cart, index: number) => void;
   onRemove: (index: number) => void;
 }
 
-const CartItemRow: React.FC<CartItemRowProps> = ({ item, index, onPress, onRemove }) => {
+const CartItemRow: React.FC<CartItemRowProps> = ({ item, index, onPress, onRemove, showPrice }) => {
   const hasSaleTaxes = (item.sale_taxes ?? []).length > 0;
   const hasPurchaseTaxes = (item.purchase_taxes ?? []).length > 0;
   const hasDiscount = item.discount && parseFloat(String(item.discount)) > 0;
@@ -40,15 +41,27 @@ const CartItemRow: React.FC<CartItemRowProps> = ({ item, index, onPress, onRemov
         {/* Name + Subtotal */}
         <View style={styles.cartItemRow}>
           <Text style={styles.cartItemName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.cartItemTotal}>
-            {(item.subtotal ?? 0).toFixed(2)}
-          </Text>
+
+          {!showPrice && (
+            <Text style={styles.cartItemTotal}>
+              {(item.subtotal ?? 0).toFixed(2)}
+            </Text>
+          )}
+           {showPrice && (
+            <Text style={styles.cartItemTotal}>
+              {(item.quantity ?? 0).toFixed(2)}
+            </Text>
+          )}
+
         </View>
 
         {/* Qty × price / unit */}
-        <Text style={styles.cartItemSub}>
-          {item.quantity} × ${item.price}{item.unit ? ` / ${item.unit}` : ''}
-        </Text>
+        {!showPrice && (
+          <Text style={styles.cartItemSub}>
+            {item.quantity} × ${item.price}{item.unit ? ` / ${item.unit}` : ''}
+          </Text>
+        )}
+
 
         {/* Discount */}
         {hasDiscount ? (
@@ -65,7 +78,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({ item, index, onPress, onRemov
         ) : null}
 
         {/* Sale Taxes */}
-        {hasSaleTaxes && (
+        {hasSaleTaxes && !showPrice && (
           <View style={styles.badgeRow}>
             {item.sale_taxes!.map((tax) => (
               <View key={tax.id} style={styles.taxBadge}>
@@ -81,7 +94,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({ item, index, onPress, onRemov
         )}
 
         {/* Purchase Taxes */}
-        {hasPurchaseTaxes && (
+        {hasPurchaseTaxes && !showPrice && (
           <View style={styles.badgeRow}>
             {item.purchase_taxes!.map((tax) => (
               <View key={tax.id} style={[styles.taxBadge, styles.taxBadgePurchase]}>

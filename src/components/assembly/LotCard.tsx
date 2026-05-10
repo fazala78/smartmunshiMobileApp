@@ -1,35 +1,60 @@
+// components/assembly/LotCard.tsx
 import React, { useCallback, useState } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
+    Alert,
+    Modal,
+    Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../theme';
 import { ActionKey, InventoryItem, ProducedItem } from '../../types/assembly';
+import { deleteLot } from '../../services/assemblyService';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type RootStackParamList = {
+    nextProcess: { stepId: number };
+    stockify: { stepId: number };
+    issueStock: { step: InventoryItem };
+    claim: { step: InventoryItem };
+    Assembly: undefined;
+    [key: string]: object | undefined;
+};
 
 interface LotCardProps {
     item: InventoryItem;
     onAction?: (key: ActionKey, itemId: string) => void;
     onTitlePress?: (item: InventoryItem) => void;
+    onDelete?: (itemId: string) => Promise<void>;
 }
 
-interface ActionButton {
-    key: ActionKey;
+const FONT = Platform.select({ ios: 'System', android: 'sans-serif' });
+
+// ─── Sheet Action Config ──────────────────────────────────────────────────────
+
+interface SheetActionConfig {
+    key: string;
     label: string;
+    sub: string;
     icon: string;
     color: string;
     bg: string;
 }
 
-const ACTION_BUTTONS: ActionButton[] = [
-    { key: 'nextStage', label: 'Next Stage', icon: 'arrow-forward', color: '#4F46E5', bg: '#EEF2FF' },
-    { key: 'stockify', label: 'Stockify', icon: 'inventory-2', color: '#16A34A', bg: '#F0FDF4' },
-    { key: 'issueStock', label: 'Issue Stock', icon: 'local-shipping', color: '#EA580C', bg: '#FFF7ED' },
-    { key: 'claim', label: 'Claim', icon: 'star-outline', color: '#C026D3', bg: '#FDF2F8' },
+const SHEET_ACTIONS: SheetActionConfig[] = [
+    { key: 'nextStage',   label: 'Next process', sub: 'Move to next stage',   icon: 'skip-next',         color: colors.dark,          bg: colors.infoLight },
+    { key: 'stockify',    label: 'Stockify',      sub: 'Move to inventory',    icon: 'inventory',         color: colors.primaryDark,   bg: colors.primaryLight },
+    { key: 'issueStock',  label: 'Issue stock',   sub: 'Dispatch materials',   icon: 'output',            color: colors.warningDark,   bg: colors.warningLight },
+    { key: 'claim',       label: 'Claim',         sub: 'File a return claim',  icon: 'assignment-return', color: colors.purple,       bg: colors.purpleLight },
 ];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function groupByPurchaseId(products: ProducedItem[]): Map<number, ProducedItem[]> {
     return products.reduce((map, item) => {
@@ -40,18 +65,130 @@ function groupByPurchaseId(products: ProducedItem[]): Map<number, ProducedItem[]
     }, new Map<number, ProducedItem[]>());
 }
 
-const LotCard: React.FC<LotCardProps> = ({ item, onAction, onTitlePress }) => {
-    const [materialsExpanded, setMaterialsExpanded] = useState(false);
-    const [producedExpanded, setProducedExpanded] = useState(false);
-    const [finishedExpanded, setFinishedExpanded] = useState(false);
-    const [claimsExpanded, setClaimsExpanded] = useState(false);
-    // key = produced item id, value = expanded bool
-    const [expandedConsumptions, setExpandedConsumptions] = useState<Set<number>>(new Set());
+// ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 
-    const toggleMaterials = useCallback(() => setMaterialsExpanded(p => !p), []);
-    const toggleProduced = useCallback(() => setProducedExpanded(p => !p), []);
-    const toggleFinished = useCallback(() => setFinishedExpanded(p => !p), []);
-    const toggleClaims = useCallback(() => setClaimsExpanded(p => !p), []);
+const ActionsBottomSheet: React.FC<{
+    visible: boolean;
+    lotNumber: string;
+    onClose: () => void;
+    onAction: (key: string) => void;
+}> = ({ visible, lotNumber, onClose, onAction }) => (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <TouchableOpacity style={sheetStyles.overlay} activeOpacity={1} onPress={onClose}>
+            <View style={sheetStyles.sheet}>
+                <View style={sheetStyles.handle} />
+                <View style={sheetStyles.header}>
+                    <Text style={sheetStyles.title}>
+                        Lot #{lotNumber.toUpperCase()} — choose action
+                    </Text>
+                    <TouchableOpacity
+                        onPress={onClose}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Icon name="close" size={20} color={colors.gray500} />
+                    </TouchableOpacity>
+                </View>
+                <View style={sheetStyles.grid}>
+                    {SHEET_ACTIONS.map((btn) => (
+                        <TouchableOpacity
+                            key={btn.key}
+                            style={[sheetStyles.sheetBtn, { backgroundColor: btn.bg }]}
+                            activeOpacity={0.75}
+                            onPress={() => { onAction(btn.key); onClose(); }}
+                        >
+                            <Icon name={btn.icon} size={22} color={btn.color} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[sheetStyles.btnLabel, { color: btn.color }]}>{btn.label}</Text>
+                                <Text style={[sheetStyles.btnSub,   { color: btn.color }]}>{btn.sub}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+        </TouchableOpacity>
+    </Modal>
+);
+
+// ─── Section Header Row ───────────────────────────────────────────────────────
+
+const SectionRow: React.FC<{
+    label: string;
+    icon: string;
+    iconColor: string;
+    expanded: boolean;
+    onToggle: () => void;
+}> = ({ label, icon, iconColor, expanded, onToggle }) => (
+    <TouchableOpacity style={styles.sectionRow} onPress={onToggle} activeOpacity={0.7}>
+        <View style={styles.sectionRowLeft}>
+            <Icon name={icon} size={15} color={iconColor} />
+            <Text style={[styles.sectionLabel, { color: iconColor }]}>{label}</Text>
+        </View>
+        <Icon name={expanded ? 'expand-less' : 'expand-more'} size={18} color={iconColor} />
+    </TouchableOpacity>
+);
+
+// ─── Table Header ─────────────────────────────────────────────────────────────
+
+const TableHead: React.FC<{ cols: { label: string; flex: number; right?: boolean }[] }> = ({ cols }) => (
+    <View style={styles.tableHeader}>
+        {cols.map((c, i) => (
+            <Text
+                key={i}
+                style={[styles.tableHeaderCell, { flex: c.flex }, c.right && styles.textRight]}
+            >
+                {c.label}
+            </Text>
+        ))}
+    </View>
+);
+
+// ─── Materials Section ────────────────────────────────────────────────────────
+
+const MaterialsSection: React.FC<{ items: InventoryItem['provided_products'] }> = ({ items }) => {
+    const [expanded, setExpanded] = useState(false);
+    if (!items?.length) return null;
+    return (
+        <View style={[styles.section]}>
+            <SectionRow
+                label="Materials provided"
+                icon="inventory-2"
+                iconColor={colors.warningDark}
+                expanded={expanded}
+                onToggle={() => setExpanded(p => !p)}
+            />
+            {expanded && (
+                <View style={[styles.sectionBody, { backgroundColor: colors.warningLight }]}>
+                    <TableHead cols={[
+                        { label: 'Item',     flex: 2.5 },
+                        { label: 'Provided', flex: 1, right: true },
+                        { label: 'Used',     flex: 1, right: true },
+                        { label: 'Rem.',     flex: 1, right: true },
+                    ]} />
+                    {items.map((mat, idx) => {
+                        const balance = mat.quantity - mat.used;
+                        return (
+                            <View key={idx} style={[styles.tableRow, idx === items.length - 1 && styles.tableRowLast]}>
+                                <View style={{ flex: 2.5 }}>
+                                    <Text style={styles.itemName}>{mat.name}</Text>
+                                    <Text style={styles.itemUnit}>{mat.unit}</Text>
+                                </View>
+                                <Text style={[styles.cellValue, { flex: 1, color: colors.textPrimary }, styles.textRight]}>{mat.quantity}</Text>
+                                <Text style={[styles.cellValue, { flex: 1, color: colors.gray700 }, styles.textRight]}>{mat.used}</Text>
+                                <Text style={[styles.cellValue, { flex: 1, color: balance > 0 ? colors.primary : colors.danger, fontWeight: '700' }, styles.textRight]}>{balance}</Text>
+                            </View>
+                        );
+                    })}
+                </View>
+            )}
+        </View>
+    );
+};
+
+// ─── Produced Section ─────────────────────────────────────────────────────────
+
+const ProducedSection: React.FC<{ items: InventoryItem['produced_products'] }> = ({ items }) => {
+    const [expanded, setExpanded] = useState(false);
+    const [expandedConsumptions, setExpandedConsumptions] = useState<Set<number>>(new Set());
 
     const toggleConsumption = useCallback((id: number) => {
         setExpandedConsumptions(prev => {
@@ -61,460 +198,698 @@ const LotCard: React.FC<LotCardProps> = ({ item, onAction, onTitlePress }) => {
         });
     }, []);
 
-    const handleAction = useCallback((key: ActionKey) => {
-        onAction?.(key, String(item.id));
-    }, [onAction, item.id]);
+    if (!items?.length) return null;
 
-    const groupedProduced = item.produced_products?.length
-        ? groupByPurchaseId(item.produced_products)
-        : null;
-
-    const grandTotal = item.produced_products?.reduce(
-        (sum, p) => sum + p.price * p.quantity, 0
-    ) ?? 0;
-
-    const finishedTotal = item.finished_products?.reduce(
-        (sum, p) => sum + p.cost * p.quantity, 0
-    ) ?? 0;
-
-    const claimsTotal = item.claims?.reduce(
-        (sum, c) => sum + c.cost * c.quantity, 0
-    ) ?? 0;
-
-    const handleTitlePress = useCallback(
-        () => onTitlePress?.(item),
-        [onTitlePress, item],
-    );
-    const isComplete = item.status?.toLowerCase() === 'complete';
-    const statusColor = isComplete ? colors.primary : colors.warning;
-    const isLocked = (item.finished_products?.length ?? 0) > 0 || (item.claims?.length ?? 0) > 0;
-
+    const grouped = groupByPurchaseId(items);
+    const grandTotal = items.reduce((sum, p) => sum + p.price * p.quantity, 0);
 
     return (
-        <View style={styles.card}>
-            {/* ── Header ── */}
-            <View style={styles.cardHeader}>
-                <View style={styles.statusContainer}>
-                    <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                    <Text style={[styles.idText, { color: statusColor }]}>
-                        {item.status.toUpperCase()}
-                    </Text>
-
-                    <Text style={styles.statusText}>
-                        LOT: {item.lot_number.toUpperCase()}
-                    </Text>
-                </View>
-                <View style={styles.actionIcons}>
-
-                    { /* <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Icon name="edit-note" size={20} color="#94A3B8" />
-                    </TouchableOpacity>
-                    <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Icon name="shortcut" size={20} color="#94A3B8" />
-                    </TouchableOpacity> */}
-
-                    <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Icon name="delete-outline" size={20} color="#94A3B8" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* ── Title ── */}
-            {isLocked ? (
-                <View style={styles.titleRow}>
-                    <View style={styles.titleContent}>
-                        <Text style={styles.itemTitle}>
-                            <Icon name="factory" size={16} style={{ marginRight: 8 }} />
-                            <Text style={{ color: '#334155', fontWeight: '600' }}> {item.account}</Text>
-                        </Text>
-                        <View style={styles.locationRow}>
-                            <Icon name="inventory" size={12} color={colors.primary} />
-                            <Text style={styles.locationText}>{item.process}</Text>
-                        </View>
-                    </View>
-                </View>
-            ) : (
-                <TouchableOpacity style={styles.titleRow} activeOpacity={0.7} onPress={handleTitlePress}>
-                    <View style={styles.titleContent}>
-                        <Text style={styles.itemTitle}>
-                            <Icon name="factory" size={16} style={{ marginRight: 8 }} />
-                            <Text style={{ color: '#334155', fontWeight: '600' }}> {item.account}</Text>
-                        </Text>
-                        <View style={styles.locationRow}>
-                            <Icon name="local-laundry-service" size={12} color={colors.warning} />
-                            <Text style={styles.locationText}>{item.process}</Text>
-                        </View>
-                    </View>
-                    <Icon name="chevron-right" size={24} color="#047857" style={styles.chevron} />
-                </TouchableOpacity>
-            )}
-
-            {/* ── Materials Provided ── */}
-            {item.provided_products && item.provided_products.length > 0 && (
-                <>
-                    <TouchableOpacity style={styles.sectionDivider} onPress={toggleMaterials} activeOpacity={0.7}>
-                        <View style={styles.sectionHeader}>
-                            <Icon name="inventory-2" size={18} color="#B45309" />
-                            <Text style={[styles.sectionTitle, { color: '#B45309' }]}>MATERIALS PROVIDED</Text>
-                        </View>
-                        <Icon name={materialsExpanded ? 'expand-less' : 'expand-more'} size={20} color="#B45309" />
-                    </TouchableOpacity>
-
-                    {materialsExpanded && (
-                        <View style={styles.tableContainer}>
-                            <View style={styles.tableHeader}>
-                                <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Item Name</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Provided</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Used</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Balance</Text>
+        <View style={[styles.section, { borderColor: colors.primaryBorder }]}>
+            <SectionRow
+                label="Produced items"
+                icon="precision-manufacturing"
+                iconColor={colors.primaryDark}
+                expanded={expanded}
+                onToggle={() => setExpanded(p => !p)}
+            />
+            {expanded && (
+                <View style={[styles.sectionBody, { backgroundColor: colors.primaryLight }]}>
+                    <TableHead cols={[
+                        { label: 'Item',  flex: 2 },
+                        { label: 'Price', flex: 1, right: true },
+                        { label: 'Qty',   flex: 1, right: true },
+                        { label: 'Sub.',  flex: 1, right: true },
+                    ]} />
+                    {Array.from(grouped.entries()).map(([purchaseId, products], gi) => (
+                        <View key={purchaseId} style={gi > 0 ? styles.purchaseDivider : undefined}>
+                            <View style={styles.poBadgeRow}>
+                                <View style={[styles.poBadge, { backgroundColor: colors.warningLight }]}>
+                                    <Icon name="receipt-long" size={10} color={colors.warning} />
+                                    <Text style={[styles.poBadgeText, { color: colors.warning }]}>PO #{purchaseId}</Text>
+                                </View>
                             </View>
-                            {item.provided_products.map((mat, idx) => {
-                                const balance = mat.quantity - mat.used;
+                            {products.map((prod, idx) => {
+                                const isOpen = expandedConsumptions.has(prod.id);
+                                const hasCons = prod.consumptions.length > 0;
                                 return (
-                                    <View key={idx} style={styles.tableRow}>
-                                        <Text style={[styles.matNameCell, { flex: 2.5 }]}>{mat.name}</Text>
-                                        <Text style={[styles.matCell, styles.cellRight]}>{mat.quantity} {mat.unit}</Text>
-                                        <Text style={[styles.matCell, styles.cellRight]}>{mat.used} {mat.unit}</Text>
-                                        <Text style={[styles.matCell, styles.cellRight, { color: balance > 0 ? '#10B981' : '#EF4444', fontWeight: '700' }]}>
-                                            {balance} {mat.unit}
-                                        </Text>
-                                    </View>
-                                );
-                            })}
-                        </View>
-                    )}
-                </>
-            )}
-
-            {/* ── Produced Items ── */}
-            {groupedProduced && (
-                <>
-                    <TouchableOpacity style={styles.sectionDivider} onPress={toggleProduced} activeOpacity={0.7}>
-                        <View style={styles.sectionHeader}>
-                            <Icon name="precision-manufacturing" size={18} color="#047857" />
-                            <Text style={[styles.sectionTitle, { color: '#047857' }]}>PRODUCED ITEMS</Text>
-                        </View>
-                        <Icon name={producedExpanded ? 'expand-less' : 'expand-more'} size={20} color="#047857" />
-                    </TouchableOpacity>
-
-                    {producedExpanded && (
-                        <View style={styles.producedContainer}>
-                            <View style={styles.tableHeader}>
-                                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Item Name</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Price</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Qty</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Total</Text>
-                            </View>
-                            {Array.from(groupedProduced.entries()).map(([purchaseId, products], groupIdx) => {
-                                return (
-                                    <View
-                                        key={purchaseId}
-                                        style={[styles.purchaseGroup, groupIdx > 0 && styles.purchaseGroupDivider]}
-                                    >
-                                        {/* ── Group Header ── */}
-                                        <View style={styles.purchaseGroupHeader}>
-                                            <View style={styles.purchaseBadge}>
-                                                <Icon name="receipt-long" size={11} color="#6D28D9" />
-                                                <Text style={styles.purchaseBadgeText}>PO #{purchaseId}</Text>
-                                            </View>
-                                        </View>
-
-                                        {/* ── Each Produced Item ── */}
-                                        {products.map((prodItem, idx) => {
-                                            const subtotal = prodItem.price * prodItem.quantity;
-                                            const isOpen = expandedConsumptions.has(prodItem.id);
-                                            const hasConsumptions = prodItem.consumptions.length > 0;
-
-                                            return (
-                                                <View key={prodItem.id}>
-                                                    <TouchableOpacity
-                                                        style={[
-                                                            styles.tableRow,
-                                                            idx === products.length - 1 && !isOpen && { borderBottomWidth: 0 },
-                                                        ]}
-                                                        onPress={() => hasConsumptions && toggleConsumption(prodItem.id)}
-                                                        activeOpacity={hasConsumptions ? 0.7 : 1}
-                                                    >
-                                                        <View style={[styles.prodNameCell, { flex: 2 }]}>
-                                                            <View style={styles.prodNameRow}>
-                                                                <Text style={styles.prodNameText}>{prodItem.name}</Text>
-                                                                {hasConsumptions && (
-                                                                    <Icon
-                                                                        name={isOpen ? 'expand-less' : 'expand-more'}
-                                                                        size={16}
-                                                                        color="#047857"
-                                                                    />
-                                                                )}
-                                                            </View>
-                                                        </View>
-                                                        <Text style={[styles.priceText, styles.cellRight]}>
-                                                            ${prodItem.price.toFixed(2)}
-                                                        </Text>
-                                                        <Text style={[styles.qtyText, styles.cellRight]}>
-                                                            {prodItem.quantity} {prodItem.unit}
-                                                        </Text>
-                                                        <Text style={[styles.subtotalText, styles.cellRight]}>
-                                                            ${subtotal.toFixed(2)}
-                                                        </Text>
-                                                    </TouchableOpacity>
-
-                                                    {/* ── Expanded Consumptions ── */}
-                                                    {isOpen && (
-                                                        <View style={styles.consumptionsPanel}>
-                                                            <View style={styles.consumptionsHeader}>
-                                                                <Text style={styles.consumptionsHeaderText}>MATERIALS USED</Text>
-                                                            </View>
-                                                            {prodItem.consumptions.map((c, ci) => (
-                                                                <View key={ci} style={styles.consumptionRow}>
-                                                                    <View style={styles.bullet} />
-                                                                    <Text style={styles.consumptionName}>{c.name}</Text>
-                                                                    <Text style={styles.consumptionQty}>{c.quantity}×{c.cost}</Text>
-                                                                    <Text style={styles.consumptionCost}>${(c.cost * c.quantity).toFixed(2)}</Text>
-                                                                </View>
-                                                            ))}
-                                                        </View>
+                                    <View key={prod.id}>
+                                        <TouchableOpacity
+                                            style={[styles.tableRow, idx === products.length - 1 && !isOpen && styles.tableRowLast]}
+                                            onPress={() => hasCons && toggleConsumption(prod.id)}
+                                            activeOpacity={hasCons ? 0.7 : 1}
+                                        >
+                                            <View style={{ flex: 2 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                    <Text style={styles.itemName}>{prod.name}</Text>
+                                                    {hasCons && (
+                                                        <Icon
+                                                            name={isOpen ? 'expand-less' : 'expand-more'}
+                                                            size={14}
+                                                            color={colors.primaryDark}
+                                                        />
                                                     )}
                                                 </View>
-                                            );
-                                        })}
-                                    </View>
-                                );
-                            })}
-
-                            <View style={styles.grandTotalRow}>
-                                <Text style={styles.grandTotalLabel}>GRAND TOTAL</Text>
-                                <Text style={styles.grandTotalValue}>${grandTotal.toFixed(2)}</Text>
-                            </View>
-                        </View>
-                    )}
-                </>
-            )}
-
-            {/* ── Finished Products ── */}
-            {item.finished_products && item.finished_products.length > 0 && (
-                <>
-                    <TouchableOpacity style={styles.sectionDivider} onPress={toggleFinished} activeOpacity={0.7}>
-                        <View style={styles.sectionHeader}>
-                            <Icon name="check-circle" size={18} color="#0369A1" />
-                            <Text style={[styles.sectionTitle, { color: '#0369A1' }]}>FINISHED PRODUCTS</Text>
-                        </View>
-                        <Icon name={finishedExpanded ? 'expand-less' : 'expand-more'} size={20} color="#0369A1" />
-                    </TouchableOpacity>
-
-                    {finishedExpanded && (
-                        <View style={styles.finishedContainer}>
-                            {/* Group by purchase_id */}
-                            {Array.from(
-                                item.finished_products.reduce((map, fp) => {
-                                    if (!map.has(fp.purchase_id)) map.set(fp.purchase_id, []);
-                                    map.get(fp.purchase_id)!.push(fp);
-                                    return map;
-                                }, new Map<number, typeof item.finished_products>())
-                            ).map(([purchaseId, products], groupIdx) => (
-                                <View
-                                    key={purchaseId}
-                                    style={[styles.purchaseGroup, groupIdx > 0 && styles.purchaseGroupDivider]}
-                                >
-                                    {/* ── Group Header ── */}
-                                    <View style={styles.purchaseGroupHeader}>
-                                        <View style={styles.finishedPoBadge}>
-                                            <Icon name="receipt-long" size={11} color="#0369A1" />
-                                            <Text style={styles.finishedPoBadgeText}>PO #{purchaseId}</Text>
-                                        </View>
-                                    </View>
-                                    {/* ── Column Headers ── */}
-                                    <View style={styles.tableHeader}>
-                                        <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Item Name</Text>
-                                        <Text style={[styles.tableHeaderCell, styles.cellRight]}>Cost</Text>
-                                        <Text style={[styles.tableHeaderCell, styles.cellRight]}>Qty</Text>
-                                        <Text style={[styles.tableHeaderCell, styles.cellRight]}>Total</Text>
-                                    </View>
-                                    {products!.map((fp, idx) => {
-                                        const subtotal = fp.cost * fp.quantity;
-                                        return (
-                                            <View
-                                                key={fp.id}
-                                                style={[
-                                                    styles.tableRow,
-                                                    idx === products!.length - 1 && { borderBottomWidth: 0 },
-                                                ]}
-                                            >
-                                                <Text style={[styles.prodNameText, { flex: 2 }]}>{fp.name}</Text>
-                                                <Text style={[styles.matCell, styles.cellRight]}>${fp.cost.toFixed(2)}</Text>
-                                                <Text style={[styles.qtyText, styles.cellRight]}>{fp.quantity}</Text>
-                                                <Text style={[styles.subtotalText, styles.cellRight, { color: '#0369A1' }]}>
-                                                    ${subtotal.toFixed(2)}
-                                                </Text>
+                                                <Text style={styles.itemUnit}>{prod.unit}</Text>
                                             </View>
-                                        );
-                                    })}
-                                </View>
-                            ))}
-                            <View style={[styles.grandTotalRow, { borderTopColor: '#BAE6FD' }]}>
-                                <Text style={styles.grandTotalLabel}>TOTAL</Text>
-                                <Text style={[styles.grandTotalValue, { color: '#0369A1' }]}>${finishedTotal.toFixed(2)}</Text>
-                            </View>
-                        </View>
-                    )}
-                </>
-            )}
-
-            {/* ── Claims ── */}
-            {item.claims && item.claims.length > 0 && (
-                <>
-                    <TouchableOpacity style={styles.sectionDivider} onPress={toggleClaims} activeOpacity={0.7}>
-                        <View style={styles.sectionHeader}>
-                            <Icon name="star" size={18} color="#C026D3" />
-                            <Text style={[styles.sectionTitle, { color: '#C026D3' }]}>CLAIMS</Text>
-                        </View>
-                        <Icon name={claimsExpanded ? 'expand-less' : 'expand-more'} size={20} color="#C026D3" />
-                    </TouchableOpacity>
-
-                    {claimsExpanded && (
-                        <View style={styles.claimsContainer}>
-                            <View style={styles.tableHeader}>
-                                <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Display Name</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Cost</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Qty</Text>
-                                <Text style={[styles.tableHeaderCell, styles.cellRight]}>Total</Text>
-                            </View>
-                            {item.claims.map((claim, idx) => {
-                                const subtotal = claim.cost * claim.quantity;
-                                return (
-                                    <View
-                                        key={idx}
-                                        style={[
-                                            styles.tableRow,
-                                            idx === item.claims!.length - 1 && { borderBottomWidth: 0 },
-                                        ]}
-                                    >
-                                        <View style={[{ flex: 2.5, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
-                                            <Icon name="star-outline" size={13} color="#C026D3" />
-                                            <Text style={[styles.prodNameText, { color: '#701A75' }]}>{claim.display_name}</Text>
-                                        </View>
-                                        <Text style={[styles.matCell, styles.cellRight]}>${claim.cost.toFixed(2)}</Text>
-                                        <Text style={[styles.qtyText, styles.cellRight]}>{claim.quantity}</Text>
-                                        <Text style={[styles.subtotalText, styles.cellRight, { color: '#86198F' }]}>
-                                            ${subtotal.toFixed(2)}
-                                        </Text>
+                                            <Text style={[styles.cellValue, { flex: 1, color: colors.primaryDark }, styles.textRight]}>
+                                                {prod.price.toLocaleString()}
+                                            </Text>
+                                            <Text style={[styles.cellValue, { flex: 1, color: colors.gray700 }, styles.textRight]}>
+                                                {prod.quantity.toLocaleString()}
+                                            </Text>
+                                            <Text style={[styles.cellValue, { flex: 1, color: colors.primaryDark, fontWeight: '700' }, styles.textRight]}>
+                                                {(prod.price * prod.quantity).toLocaleString()}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {isOpen && (
+                                            <View style={styles.consumptionsPanel}>
+                                                {prod.consumptions.map((c, ci) => (
+                                                    <View key={ci} style={styles.consumptionRow}>
+                                                        <View style={styles.bullet} />
+                                                        <Text style={styles.consumptionName}>{c.name}</Text>
+                                                        <Text style={styles.consumptionQty}>{c.quantity}×{c.cost}</Text>
+                                                        <Text style={styles.consumptionCost}>${(c.cost * c.quantity).toFixed(2)}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        )}
                                     </View>
                                 );
                             })}
-                            <View style={[styles.grandTotalRow, { borderTopColor: '#F0ABFC' }]}>
-                                <Text style={styles.grandTotalLabel}>TOTAL</Text>
-                                <Text style={[styles.grandTotalValue, { color: '#86198F' }]}>${claimsTotal.toFixed(2)}</Text>
-                            </View>
                         </View>
-                    )}
-                </>
-            )}
-
-            {/* ── Action Buttons ── */}
-            {!isLocked && (
-                <View style={styles.actionRow}>
-                    {ACTION_BUTTONS.map((btn) => (
-                        <TouchableOpacity
-                            key={btn.key}
-                            style={styles.actionBtn}
-                            activeOpacity={0.7}
-                            onPress={() => handleAction(btn.key)}
-                        >
-                            <View style={[styles.actionIconWrap, { backgroundColor: btn.bg }]}>
-                                <Icon name={btn.icon} size={18} color={btn.color} />
-                            </View>
-                            <Text style={[styles.actionLabel, { color: btn.color }]}>{btn.label}</Text>
-                        </TouchableOpacity>
                     ))}
+                    <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>Grand total</Text>
+                        <Text style={[styles.totalValue, { color: colors.primaryDark }]}>${grandTotal.toFixed(2)}</Text>
+                    </View>
                 </View>
             )}
         </View>
     );
 };
 
+// ─── Finished Products Section ────────────────────────────────────────────────
+
+const FinishedSection: React.FC<{ items: InventoryItem['finished_products'] }> = ({ items }) => {
+    const [expanded, setExpanded] = useState(false);
+    if (!items?.length) return null;
+
+    const total = items.reduce((sum, p) => sum + p.cost * p.quantity, 0);
+    const grouped = items.reduce((map, fp) => {
+        if (!map.has(fp.purchase_id)) map.set(fp.purchase_id, []);
+        map.get(fp.purchase_id)!.push(fp);
+        return map;
+    }, new Map<number, typeof items>());
+
+    return (
+        <View style={[styles.section, { borderColor: colors.infoLight }]}>
+            <SectionRow
+                label="Finished products"
+                icon="check-circle"
+                iconColor={colors.infoDark}
+                expanded={expanded}
+                onToggle={() => setExpanded(p => !p)}
+            />
+            {expanded && (
+                <View style={[styles.sectionBody, { backgroundColor: colors.infoLight }]}>
+                    {Array.from(grouped.entries()).map(([purchaseId, products], gi) => (
+                        <View key={purchaseId} style={gi > 0 ? styles.purchaseDivider : undefined}>
+                            <View style={styles.poBadgeRow}>
+                                <View style={[styles.poBadge, { backgroundColor: colors.infoLight }]}>
+                                    <Icon name="receipt-long" size={10} color={colors.info} />
+                                    <Text style={[styles.poBadgeText, { color: colors.info }]}>PO #{purchaseId}</Text>
+                                </View>
+                            </View>
+                            <TableHead cols={[
+                                { label: 'Item',  flex: 2 },
+                                { label: 'Cost',  flex: 1, right: true },
+                                { label: 'Qty',   flex: 1, right: true },
+                                { label: 'Total', flex: 1, right: true },
+                            ]} />
+                            {products!.map((fp, idx) => (
+                                <View key={fp.id} style={[styles.tableRow, idx === products!.length - 1 && styles.tableRowLast]}>
+                                    <View style={{ flex: 2 }}>
+                                        <Text style={styles.itemName}>{fp.name}</Text>
+                                    </View>
+                                    <Text style={[styles.cellValue, { flex: 1, color: colors.gray700 }, styles.textRight]}>${fp.cost.toFixed(2)}</Text>
+                                    <Text style={[styles.cellValue, { flex: 1, color: colors.gray700 }, styles.textRight]}>{fp.quantity}</Text>
+                                    <Text style={[styles.cellValue, { flex: 1, color: colors.infoDark, fontWeight: '700' }, styles.textRight]}>${(fp.cost * fp.quantity).toFixed(2)}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    ))}
+                    <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>Total</Text>
+                        <Text style={[styles.totalValue, { color: colors.infoDark }]}>${total.toFixed(2)}</Text>
+                    </View>
+                </View>
+            )}
+        </View>
+    );
+};
+
+// ─── Claims Section ───────────────────────────────────────────────────────────
+
+const ClaimsSection: React.FC<{ items: InventoryItem['claims'] }> = ({ items }) => {
+    const [expanded, setExpanded] = useState(false);
+    if (!items?.length) return null;
+
+    const total = items.reduce((sum, c) => sum + c.cost * c.quantity, 0);
+
+    return (
+        <View style={[styles.section, { borderColor: colors.purpleLight }]}>
+            <SectionRow
+                label="Claims"
+                icon="assignment-return"
+                iconColor={colors.purple}
+                expanded={expanded}
+                onToggle={() => setExpanded(p => !p)}
+            />
+            {expanded && (
+                <View style={[styles.sectionBody, { backgroundColor: colors.purpleLight }]}>
+                    <TableHead cols={[
+                        { label: 'Name',  flex: 2.5 },
+                        { label: 'Cost',  flex: 1, right: true },
+                        { label: 'Qty',   flex: 1, right: true },
+                        { label: 'Total', flex: 1, right: true },
+                    ]} />
+                    {items.map((claim, idx) => (
+                        <View key={idx} style={[styles.tableRow, idx === items.length - 1 && styles.tableRowLast]}>
+                            <View style={{ flex: 2.5, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                <Icon name="star-outline" size={12} color={colors.purple} />
+                                <Text style={[styles.itemName, { color: colors.purple }]}>{claim.display_name}</Text>
+                            </View>
+                            <Text style={[styles.cellValue, { flex: 1, color: colors.gray700 }, styles.textRight]}>${claim.cost.toFixed(2)}</Text>
+                            <Text style={[styles.cellValue, { flex: 1, color: colors.gray700 }, styles.textRight]}>{claim.quantity}</Text>
+                            <Text style={[styles.cellValue, { flex: 1, color: colors.purple, fontWeight: '700' }, styles.textRight]}>${(claim.cost * claim.quantity).toFixed(2)}</Text>
+                        </View>
+                    ))}
+                    <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>Total</Text>
+                        <Text style={[styles.totalValue, { color: colors.purple }]}>${total.toFixed(2)}</Text>
+                    </View>
+                </View>
+            )}
+        </View>
+    );
+};
+
+// ─── Main LotCard ─────────────────────────────────────────────────────────────
+
+const LotCard: React.FC<LotCardProps> = ({ item, onAction, onTitlePress }) => {
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const [sheetVisible, setSheetVisible] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // ─── Delete ───────────────────────────────────────────────────────────────
+
+    const handleDelete = useCallback(() => {
+        Alert.alert(
+            'Delete Lot',
+            `Delete LOT ${item.lot_number.toUpperCase()}? This cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setIsDeleting(true);
+                            await deleteLot?.(item.id);
+                            navigation.navigate('Assembly');
+                        } catch {
+                            Alert.alert('Error', 'Failed to delete lot. Please try again.');
+                        } finally {
+                            setIsDeleting(false);
+                        }
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
+    }, [item.id, item.lot_number, navigation]);
+
+    // ─── Action ───────────────────────────────────────────────────────────────
+
+    const handleAction = useCallback((key: string) => {
+        switch (key) {
+            case 'nextStage':  navigation.push('nextProcess', { stepId: Number(item.id) }); break;
+            case 'stockify':   navigation.push('stockify',    { stepId: Number(item.id) }); break;
+            case 'issueStock': navigation.push('issueStock',  { step: item });              break;
+            case 'claim':      navigation.push('claim',       { step: item });              break;
+            default:           onAction?.(key as ActionKey, String(item.id));
+        }
+    }, [navigation, item, onAction]);
+
+    // ─── Derived ──────────────────────────────────────────────────────────────
+
+    const isComplete   = item.status?.toLowerCase() === 'complete';
+    const statusColor  = isComplete ? colors.primary : colors.warning;
+    const statusBg     = isComplete ? colors.primaryLight : colors.warningLight;
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+
+    return (
+        <View style={[styles.card, isDeleting && styles.cardDeleting]}>
+
+            {/* ── Header ── */}
+            <View style={styles.cardHeader}>
+                {/* Left: status pill + lot info */}
+                <View style={styles.headerLeft}>
+                    <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
+                        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                        <Text style={[styles.statusText, { color: statusColor }]}>
+                            {item.status.toUpperCase()}
+                        </Text>
+                    </View>
+                    <Text style={styles.lotNumber}>Lot #{item.lot_number.toUpperCase()}</Text>
+                    <Text style={styles.processText}>{item.process}</Text>
+                </View>
+
+                {/* Right: yield badge + action button + delete */}
+                <View style={styles.headerRight}>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity
+                            style={styles.headerActionsBtn}
+                            onPress={() => setSheetVisible(true)}
+                            activeOpacity={0.72}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                            <Icon name="more-vert" size={20} color={colors.gray700} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.deleteBtn}
+                            onPress={handleDelete}
+                            disabled={isDeleting}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                            <Icon
+                                name="delete-outline"
+                                size={18}
+                                color={colors.danger}
+                            />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+
+            {/* ── Account / Title row ── */}
+            <TouchableOpacity
+                style={styles.titleRow}
+                activeOpacity={0.7}
+                onPress={() => onTitlePress?.(item)}
+            >
+                <View style={styles.titleLeft}>
+                    <Icon name="factory" size={15} color={colors.gray500} />
+                    <Text style={styles.accountText} numberOfLines={1}>{item.account}</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.gray500} />
+            </TouchableOpacity>
+
+            {/* ── Sections ── */}
+            <View style={styles.sectionsWrapper}>
+                <MaterialsSection items={item.provided_products} />
+                <ProducedSection  items={item.produced_products} />
+                <FinishedSection  items={item.finished_products} />
+                <ClaimsSection    items={item.claims} />
+            </View>
+
+            {/* ── Bottom Sheet ── */}
+            <ActionsBottomSheet
+                visible={sheetVisible}
+                lotNumber={item.lot_number}
+                onClose={() => setSheetVisible(false)}
+                onAction={handleAction}
+            />
+        </View>
+    );
+};
+
+// ─── Bottom Sheet Styles ──────────────────────────────────────────────────────
+
+const sheetStyles = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    sheet: {
+        backgroundColor: colors.white,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: 36,
+    },
+    handle: {
+        width: 36,
+        height: 4,
+        borderRadius: 99,
+        backgroundColor: colors.gray300,
+        alignSelf: 'center',
+        marginTop: 10,
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.gray300,
+    },
+    title: {
+        fontSize: 13,
+        fontFamily: FONT,
+        fontWeight: '500',
+        color: colors.gray700,
+    },
+    grid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        padding: 16,
+    },
+    sheetBtn: {
+        width: '47.5%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        padding: 14,
+        borderRadius: 10,
+    },
+    btnLabel: {
+        fontSize: 13,
+        fontFamily: FONT,
+        fontWeight: '700',
+    },
+    btnSub: {
+        fontSize: 11,
+        fontFamily: FONT,
+        marginTop: 2,
+        opacity: 0.75,
+    },
+});
+
+// ─── Card Styles ──────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-    card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-    statusContainer: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-    statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-    statusText: { fontSize: 12, fontWeight: 'bold', letterSpacing: 0, color: colors.gray500 },
-    idText: { fontSize: 10, fontWeight: 'bold', letterSpacing: 0, color: '#94A3B8', fontFamily: 'monospace', marginRight: 8 },
-    actionIcons: { flexDirection: 'row', gap: 12 },
 
-    titleRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 10 },
-    titleContent: { flex: 1, flexDirection: 'column' },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
+    // Card shell
+    card: {
+        backgroundColor: colors.white,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.gray200,
+        marginBottom: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    cardDeleting: { opacity: 0.5 },
 
-    itemTitle: { fontSize: 20, fontWeight: 'bold', color: '#1E293B', textTransform: 'capitalize', width: '100%' },
-    chevron: { marginLeft: 4, marginTop: 2 },
-    locationText: { fontSize: 14, color: '#64748B', marginLeft: 2 },
+    // Header
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        backgroundColor: colors.backgroundLight,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.gray200,
+    },
+    headerLeft: {
+        flex: 1,
+        gap: 3,
+    },
+    statusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 99,
+        marginBottom: 4,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    statusText: {
+        fontSize: 10,
+        fontFamily: FONT,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
+    lotNumber: {
+        fontSize: 14,
+        fontFamily: FONT,
+        fontWeight: '700',
+        color: colors.gray900,
+    },
+    processText: {
+        fontSize: 11,
+        fontFamily: FONT,
+        color: colors.gray500,
+        marginTop: 1,
+    },
+    headerRight: {
+        alignItems: 'flex-end',
+        justifyContent: 'flex-start',
+        paddingTop: 2,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    headerActionsBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 99,
+        backgroundColor: colors.gray100,
+        borderWidth: 0.5,
+        borderColor: colors.gray300,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    deleteBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 99,
+        backgroundColor: colors.dangerLight,
+        borderWidth: 0.5,
+        borderColor: colors.dangerLight,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 
-    sectionDivider: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    sectionTitle: { fontSize: 11, fontWeight: 'bold', letterSpacing: 1.5 },
+    // Title / account row
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 14,
+        paddingVertical: 11,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.gray200,
+    },
+    titleLeft: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+    },
+    accountText: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: FONT,
+        fontWeight: '600',
+        color: colors.gray900,
+        textTransform: 'capitalize',
+    },
 
-    // Materials provided
-    tableContainer: { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, marginTop: 10 },
-    tableHeader: { flexDirection: 'row', marginBottom: 12, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-    tableHeaderCell: { flex: 1, fontSize: 9, fontWeight: 'bold', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5 },
-    cellRight: { textAlign: 'right' },
-    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-    matNameCell: { fontSize: 12, color: '#334155', fontWeight: '500' },
-    matCell: { flex: 1, fontSize: 12, color: '#475569' },
+    // Sections wrapper
+    sectionsWrapper: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        gap: 8,
+    },
 
-    // Produced container
-    producedContainer: { backgroundColor: '#F0FDF8', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#A7F3D0' },
+    // Individual section card
+    section: {
+        overflow: 'hidden',
+    },
+    sectionRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: colors.white,
+    },
+    sectionRowLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+    },
+    sectionLabel: {
+        fontSize: 11,
+        fontFamily: FONT,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+    },
+    sectionBody: {
+        paddingHorizontal: 12,
+        paddingTop: 10,
+        paddingBottom: 12,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.06)',
+    },
 
-    // Finished products container
-    finishedContainer: { backgroundColor: '#F0F9FF', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#BAE6FD' },
-    finishedPoBadge: { backgroundColor: '#E0F2FE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-    finishedPoBadgeText: { fontSize: 10, fontWeight: '700', color: '#0369A1' },
+    // Table
+    tableHeader: {
+        flexDirection: 'row',
+        paddingBottom: 7,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.07)',
+        marginBottom: 2,
+    },
+    tableHeaderCell: {
+        fontSize: 9,
+        fontFamily: FONT,
+        fontWeight: '700',
+        color: colors.gray500,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    textRight: { textAlign: 'right' },
+    tableRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 9,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
+    },
+    tableRowLast: { borderBottomWidth: 0 },
+    itemName: {
+        fontSize: 12,
+        fontFamily: FONT,
+        fontWeight: '600',
+        color: colors.gray900,
+    },
+    itemUnit: {
+        fontSize: 9,
+        fontFamily: FONT,
+        color: colors.gray500,
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+        marginTop: 1,
+    },
+    cellValue: {
+        fontSize: 12,
+        fontFamily: FONT,
+        fontWeight: '500',
+    },
 
-    // Claims container
-    claimsContainer: { backgroundColor: '#FDF4FF', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#F0ABFC' },
+    // PO badge
+    poBadgeRow: {
+        paddingVertical: 6,
+    },
+    poBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        alignSelf: 'flex-start',
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 5,
+    },
+    poBadgeText: {
+        fontSize: 10,
+        fontFamily: FONT,
+        fontWeight: '700',
+    },
+    purchaseDivider: {
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.07)',
+        marginTop: 8,
+        paddingTop: 4,
+    },
 
-    // Purchase group
-    purchaseGroup: { marginBottom: 4 },
-    purchaseGroupDivider: { borderTopWidth: 1, borderTopColor: '#E0F2FE', paddingTop: 12, marginTop: 8 },
-    purchaseGroupHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-    purchaseBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EDE9FE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    purchaseBadgeText: { fontSize: 10, fontWeight: '700', color: '#6D28D9' },
-    manufacturerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E0F2FE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    manufacturerText: { fontSize: 10, fontWeight: '600', color: '#0369A1' },
+    // Consumptions
+    consumptionsPanel: {
+        backgroundColor: '#ecfdf5',
+        borderRadius: 6,
+        marginBottom: 4,
+        padding: 10,
+        borderLeftWidth: 3,
+        borderLeftColor: colors.primary,
+    },
+    consumptionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 3,
+    },
+    bullet: {
+        width: 5,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: colors.primary,
+    },
+    consumptionName: {
+        flex: 1,
+        fontSize: 12,
+        fontFamily: FONT,
+        color: colors.gray700,
+        fontWeight: '500',
+    },
+    consumptionQty: {
+        fontSize: 11,
+        fontFamily: FONT,
+        color: colors.gray500,
+    },
+    consumptionCost: {
+        fontSize: 12,
+        fontFamily: FONT,
+        fontWeight: '700',
+        color: colors.primaryDark,
+        minWidth: 55,
+        textAlign: 'right',
+    },
 
-    // Produced item row
-    prodNameCell: { flexDirection: 'column', justifyContent: 'center', gap: 2 },
-    prodNameText: { fontSize: 13, fontWeight: '600', color: '#334155' },
-    consumptionBadge: { flexDirection: 'row', alignItems: 'center', gap: 1, marginTop: 2 },
-    consumptionBadgeText: { fontSize: 10, color: '#047857', fontWeight: '600' },
-    prodNameRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-
-    priceText: { flex: 1, fontSize: 12, color: '#047857' },
-    qtyText: { flex: 1, fontSize: 12, color: '#475569' },
-    subtotalText: { flex: 1, fontSize: 13, fontWeight: 'bold', color: '#065F46' },
-
-    // Consumptions panel
-    consumptionsPanel: { backgroundColor: '#ECFDF5', borderRadius: 8, marginBottom: 4, marginHorizontal: 2, padding: 10, borderLeftWidth: 3, borderLeftColor: '#10B981' },
-    consumptionsHeader: { marginBottom: 6 },
-    consumptionsHeaderText: { fontSize: 9, fontWeight: 'bold', color: '#6B7280', letterSpacing: 1, textTransform: 'uppercase' },
-    consumptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-    bullet: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#10B981' },
-    consumptionName: { flex: 1, fontSize: 12, color: '#374151', fontWeight: '500' },
-    consumptionQty: { fontSize: 12, color: '#6B7280' },
-    consumptionCost: { fontSize: 12, fontWeight: '700', color: '#065F46', minWidth: 55, textAlign: 'right' },
-
-    // Totals
-    groupTotalRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10, paddingTop: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: '#A7F3D0' },
-    groupTotalLabel: { fontSize: 10, fontWeight: '600', color: '#64748B', textTransform: 'uppercase' },
-    groupTotalValue: { fontSize: 13, fontWeight: '700', color: '#047857' },
-    grandTotalRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'baseline', gap: 10, marginTop: 12, paddingTop: 10, borderTopWidth: 2, borderTopColor: '#6EE7B7' },
-    grandTotalLabel: { fontSize: 10, fontWeight: 'bold', color: '#374151', textTransform: 'uppercase', letterSpacing: 1 },
-    grandTotalValue: { fontSize: 17, fontWeight: '800', color: '#047857' },
-
-    // Action buttons
-    actionRow: { flexDirection: 'row', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-    actionBtn: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
-    actionIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-    actionLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+    // Section totals
+    totalRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'baseline',
+        gap: 10,
+        marginTop: 10,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.08)',
+    },
+    totalLabel: {
+        fontSize: 10,
+        fontFamily: FONT,
+        fontWeight: '700',
+        color: colors.gray700,
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+    },
+    totalValue: {
+        fontSize: 15,
+        fontFamily: FONT,
+        fontWeight: '800',
+    },
 });
 
 export default LotCard;

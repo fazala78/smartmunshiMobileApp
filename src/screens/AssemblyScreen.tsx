@@ -9,7 +9,6 @@ import {
     RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import BottomNavigation from '../components/BottomNavigation';
 import { colors } from '../theme/colors';
 import Header from '../components/ui/Header';
 import Filter from '../components/Filter';
@@ -26,7 +25,9 @@ import Loading from '../components/common/Loading';
 import LotCard from '../components/assembly/LotCard';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { ActionKey, FetchParams, InventoryItem, LotFilters, Processes } from '../types/assembly';
+import { FetchParams, InventoryItem, LotFilters, Processes } from '../types/assembly';
+import AssemblyNavigation from '../components/AssemblyNavigation';
+import { FloatingFabButton } from '../components/ui/FloatingFabButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,9 +74,7 @@ const AssemblyScreen: React.FC<Props> = ({ navigation }) => {
         setFilters(prev => ({ ...prev, lotStatus: 'all', processes: [], isSubLot: value }));
     }, []);
 
-    const handleAction = useCallback((key: ActionKey, itemId: string): void => {
-        console.log(`Action "${key}" triggered for item ${itemId}`);
-    }, []);
+   
 
     // ─── Filter tabs ──────────────────────────────────────────────────────
 
@@ -146,10 +145,9 @@ const AssemblyScreen: React.FC<Props> = ({ navigation }) => {
 
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<InventoryItem>) => {
-            console.log('Rendering item:', item); // explicit statement, not comma expression
-            return <LotCard item={item} onAction={handleAction}  onTitlePress={handleTitlePress} />;
+            return <LotCard item={item}   onTitlePress={handleTitlePress} />;
         },
-        [handleAction, handleTitlePress],
+        [ handleTitlePress],
     );
 
     const renderFooter = useCallback(
@@ -176,7 +174,7 @@ const AssemblyScreen: React.FC<Props> = ({ navigation }) => {
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-            <Header title="Assembly" navigation={null} />
+            <Header title="Assembly" navigation={navigation} />
 
             <Filter
                 placeHolder="Search Lots..."
@@ -274,8 +272,8 @@ const AssemblyScreen: React.FC<Props> = ({ navigation }) => {
                     </View>
                 )}
             </FilterModal>
-
-            <BottomNavigation activeRoute="Home" />
+            <AssemblyNavigation activeRoute="Assembly" />
+              <FloatingFabButton  onPress={() => navigation.navigate('addLot')} />
         </SafeAreaView>
     );
 };
@@ -284,18 +282,12 @@ const AssemblyScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.white },
-    toggleRow: { backgroundColor: colors.white , paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+    toggleRow: { backgroundColor: colors.white , paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.gray300 },
     listContent: { paddingHorizontal: 16, paddingBottom: 16 },
     inventoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 8 },
-    inventoryTitle: { fontSize: 11, fontWeight: 'bold', letterSpacing: 1.5, color: '#64748B' },
-    itemCount: { fontSize: 11, fontWeight: 'bold', color: '#64748B' },
+    inventoryTitle: { fontSize: 11, fontWeight: 'bold', letterSpacing: 1.5, color: colors.gray500 },
+    itemCount: { fontSize: 11, fontWeight: 'bold', color: colors.gray500 },
 
-    // ── Unified filter block ──
-    filterRow: { flexDirection: 'row', alignItems: 'center', height: 48, paddingHorizontal: 16 },
-    filterRowAlt: { backgroundColor: '#F8FAFC' },
-    filterRowLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: '#94A3B8', textTransform: 'uppercase', width: 52 },
-    filterRowDivider: { width: 1, height: 20, backgroundColor: '#E2E8F0', marginRight: 12 },
-    filterRowSeparator: { height: 1, backgroundColor: '#E2E8F0', marginHorizontal: 16 },
 });
 
 export default AssemblyScreen;

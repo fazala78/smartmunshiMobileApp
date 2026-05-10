@@ -22,7 +22,7 @@ interface BottomNavigationProps {
 
 const navItems: BottomNavItem[] = [
   { id: 1, label: 'Home', icon: 'home', screen: 'Home' },
-  { id: 2, label: 'Contacts', icon: 'contacts', screen: 'Contacts' },
+  { id: 2, label: 'Ledgers', icon: 'contacts', screen: 'Contacts' },
   { id: 3, label: 'Scan', icon: 'qr-code-scanner', isScanner: true },
   { id: 4, label: 'Cash Report', icon: 'payments', screen:'dailyCashReport'},
   { id: 5, label: 'Menu', icon: 'menu', screen:'Menu' },

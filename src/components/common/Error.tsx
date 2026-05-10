@@ -8,7 +8,7 @@ const Error: React.FC<any> = ({ refetch }) => {
 
         <View style={styles.center}>
             <Icon name="error-outline" size={44} color={colors.danger} />
-            <Text style={styles.emptyTitle}>Failed to load cheques</Text>
+            <Text style={styles.emptyTitle}>Failed to load data</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
                 <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>

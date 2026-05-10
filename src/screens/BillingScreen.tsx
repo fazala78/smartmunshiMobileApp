@@ -11,7 +11,6 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import AsyncDropdown from '../components/AsyncDropdown';
 import CheckoutModal from './modals/CheckoutModal';
 import Shopping from '../components/Shopping';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +26,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import Header from '../components/ui/Header';
 import { Contact } from '../types/contact';
+import LocalDropdown from '../components/LocallDropdown';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Billing'>;
@@ -150,21 +150,22 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
             {/* Contact dropdown */}
             <View style={{ zIndex: 3000 }}>
               {payload != null && (
-                <AsyncDropdown
-                  url="/search-contact"
-                  searchParam="q"
-                  minSearchLength={4}
+                <LocalDropdown<Contact>
+                  label="Contact"
+                  inputBg={colors.backgroundLight}
+                  value={payload.contact}        // ← shows chip if set
                   creatable
                   createLabel="Create contact"
-                  inputBg={colors.backgroundLight}
-                  value={payload.contact as unknown as Contact}
                   onSelect={(customer) => {
                     setPayload((prev) => {
                       if (!prev) return prev;
                       return { ...prev, contact: customer } as Inventory;
                     });
                   }}
+                  labelResolver={(c) => c.name}
+                  subLabelResolver={(c) => c.phone}
                 />
+
               )}
             </View>
 

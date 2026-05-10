@@ -41,6 +41,7 @@ const PurchaseCheckoutModal: React.FC<PurchaseCheckoutModalProps> = ({
     // ── State ──────────────────────────────────────────────────────────────────
     const [loading, setLoading] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null); // replaces toast
+    const [showBalanceOverview, setShowBalanceOverview] = useState(false);
     const { play } = useSuccessSound();
     let resetSwipe: (() => void) | null = null;
 
@@ -73,6 +74,8 @@ const PurchaseCheckoutModal: React.FC<PurchaseCheckoutModalProps> = ({
     // ── Checkout ───────────────────────────────────────────────────────────────
     const checkOut = async () => {
         if (loading) return;
+
+        setShowBalanceOverview(true);
 
         const validationErrors = validate();
         if (validationErrors.length > 0) {
@@ -168,9 +171,9 @@ const PurchaseCheckoutModal: React.FC<PurchaseCheckoutModalProps> = ({
                             keyboardShouldPersistTaps="handled"
                             showsVerticalScrollIndicator={false}
                         >
-                          
-
-                            <DatePickerField
+                           <View style={styles.row}>
+                                  <View style={styles.flexOne}>
+                                        <DatePickerField
                                 label="Date"
                                 value={payload?.date as Date}
                                 onChange={(date) => setPayload((prev) => {
@@ -180,8 +183,9 @@ const PurchaseCheckoutModal: React.FC<PurchaseCheckoutModalProps> = ({
                                 placeholder="Select date"
                                 inputBg={colors.backgroundLight}
                             />
-
-                            <InputField
+                                  </View>
+                                  <View style={styles.flexOne}>
+                                    <InputField
                                 bg="white"
                                 textAlign="left"
                                 label="Invoice Number"
@@ -197,6 +201,12 @@ const PurchaseCheckoutModal: React.FC<PurchaseCheckoutModalProps> = ({
                                 placeholder="e.g. PU-01"
                                 icon="receipt"
                             />
+                                  </View>
+                                  </View>
+
+                            
+
+                            
 
                             <InputField
                                 bg="white"
@@ -232,7 +242,7 @@ const PurchaseCheckoutModal: React.FC<PurchaseCheckoutModalProps> = ({
                             />
 
                             {/* ── Summary ── */}
-                            <TransactionSummary payload={payload} />
+                            <TransactionSummary payload={payload} showBalanceOverview={showBalanceOverview} />
                         </ScrollView>
 
                         {/* ── Footer ── */}
@@ -273,6 +283,8 @@ export default PurchaseCheckoutModal;
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+     row: { flexDirection: 'row', gap: 8 },
+     flexOne: { flex: 1 },
     overlay: {
         flex: 1,
         backgroundColor: colors.backgroundOverlay,

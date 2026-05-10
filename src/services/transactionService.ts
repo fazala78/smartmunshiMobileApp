@@ -1,5 +1,5 @@
 import { Inventory } from '../types/Inventory';
-import { InvoiceReceipt, JournalSlip } from '../types/receipt';
+import { InvoiceReceipt } from '../types/receipt';
 import api from './api';
 /**
  * Fetch contacts with filters and pagination

@@ -77,7 +77,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [showBranchModal, setShowBranchModal] = useState(false);
   const spinValue = useRef(new Animated.Value(0)).current;
 
-  // ── Modified loadUserData to wait for initial sync ──
+  // ── load user data from AsyncStorage ──
   const loadUserData = useCallback(async () => {
     try {
       const userData = await AsyncStorage.getItem('user');
@@ -103,10 +103,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         await AsyncStorage.multiRemove(['authToken', 'user', 'tenant', 'selectedBranch']);
         navigation.replace('Login');
       }
-    }finally{
+    } finally {
       setLoading(false);
     }
-    
   }, [navigation]);
 
   // Check if contacts were already synced to skip waiting
@@ -168,7 +167,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading your data...</Text>
+        <Text style={styles.loadingText}>Syncing contacts and products...</Text>
       </View>
     );
   }

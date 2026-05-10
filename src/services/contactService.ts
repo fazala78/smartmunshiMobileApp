@@ -1,4 +1,5 @@
 import api from './api';
+import { getJson, setJson } from './storage';
 import {
   ContactFilters,
   PaginatedResponse,
@@ -21,7 +22,7 @@ import {
  * @returns Promise with paginated contacts data
  */
 export const fetchContacts = async (
-  filters: ContactFilters = {},
+  filters: any = {},
 ): Promise<PaginatedResponse> => {
   try {
     const params: any = {
@@ -46,6 +47,10 @@ export const fetchContacts = async (
     // Add category filter
     if (filters.search?.category && filters.search.category.length > 0) {
       params.category = filters.search.category;
+    }
+
+    if (filters.search?.since) {
+      params.since = filters.search?.since;
     }
 
     const response = await api.get('/contacts', { params });
@@ -99,6 +104,101 @@ export const fetchContacts = async (
     throw error;
   }
 };
+
+export const getAllContacts = async (
+  filters: ContactFilters,
+): Promise<PaginatedResponse> => {
+  try {
+    const params: any = {
+      page: filters.page || 1,
+      limit: filters.limit || 10,
+    };
+    // Add search query
+    if (filters.search && filters.search.searchQuery.trim()) {
+      params.search = filters.search.searchQuery.trim();
+    }
+
+    // Add contact type file
+    if (filters.search?.contactType && filters.search.contactType !== 'all') {
+      params.type = filters.search.contactType;
+    }
+
+    // Add city filter
+    if (filters.search?.cities && filters.search.cities.length > 0) {
+      params.cities = filters.search.cities;
+    }
+
+    // Add category filter
+    if (filters.search?.category && filters.search.category.length > 0) {
+      params.category = filters.search.category;
+    }
+
+    if (filters?.since) {
+      params.since = filters?.since;
+    }
+
+    const response = await api.get('/all-contacts', { params });
+
+    return response.data;
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+const CONTACTS_CACHE_KEY = 'contacts:all';
+
+export const fetchAllContacts = async (
+  filters: ContactFilters,
+  pageSize = 30,
+): Promise<Contact[]> => {
+  const allContacts: Contact[] = [];
+  let currentPage = 1;
+
+  while (true) {
+    const params: any = {
+      ...filters,
+      page: currentPage,
+      limit: pageSize,
+    };
+
+    // Add since parameter for incremental sync
+
+    const response = await getAllContacts(params);
+    // Filter out items with status === false (if statu property exists)
+    const activeContacts = response.data;
+    allContacts.push(...activeContacts);
+
+    if (response.current_page === response.last_page) {
+      break;
+    }
+
+    currentPage += 1;
+  }
+
+  // Merge with existing cche if doing incremental sync, otherwise replace
+
+  if (filters.since) {
+    const cached = getCachedContacts();
+    const mergedContacts = [...cached, ...allContacts];
+    // Remove duplicates by id
+    const uniqueContacts = Array.from(
+      new Map(mergedContacts.map(c => [c.id, c])).values(),
+    );
+    // Remove contacts with status === false from cache
+    const activeContacts = uniqueContacts.filter(
+      (contact: Contact) => (contact as any).status !== false,
+    );
+    setJson(CONTACTS_CACHE_KEY, activeContacts);
+    return activeContacts;
+  } else {
+    setJson(CONTACTS_CACHE_KEY, allContacts);
+    return allContacts;
+  }
+};
+
+export const getCachedContacts = (): Contact[] => {
+  return getJson<Contact[]>(CONTACTS_CACHE_KEY) ?? [];
+};
 /**
  * Create a new contact
  * @param contactData - Contact data to create
@@ -148,8 +248,6 @@ export const getContactTransactions = async (
       params: queryParams,
     });
 
-    console.log('📦 Raw Transactions Response:', response.data);
-
     // Transform Laravel pagination format to our custom format
     const laravelData = response.data;
 
@@ -165,18 +263,10 @@ export const getContactTransactions = async (
       },
     };
 
-    console.log('🔄 Transformed Transactions:', {
-      dataCount: transformedResponse.data.length,
-      pagination: transformedResponse.pagination,
-    });
-
     return transformedResponse;
   } catch (error: any) {
     console.error('❌ Error fetching contact details:', error);
-    return {
-      success: false,
-      error: error.response?.data?.message || 'Failed to fetch contact details',
-    };
+    throw error;
   }
 };
 
@@ -266,13 +356,18 @@ export const exportContacts = async (filters: ContactFilters = {}) => {
   try {
     const params: any = {};
 
-    if (filters.search) params.search = filters.search;
-    if (filters.contactType && filters.contactType !== 'All')
-      params.type = filters.contactType;
-    if (filters.city && filters.city !== 'All Cities')
-      params.city = filters.city;
-    if (filters.category && filters.category !== 'All')
-      params.category = filters.category;
+    if (filters.search?.searchQuery?.trim()) {
+      params.search = filters.search.searchQuery.trim();
+    }
+    if (filters.search?.contactType && filters.search.contactType !== 'all') {
+      params.type = filters.search.contactType;
+    }
+    if (filters.search?.cities && filters.search.cities.length > 0) {
+      params.cities = filters.search.cities;
+    }
+    if (filters.search?.category && filters.search.category.length > 0) {
+      params.category = filters.search.category;
+    }
 
     const response = await api.get('/contacts/export', {
       params,
@@ -392,6 +487,15 @@ export const getLedgerHtml = async (
 export const createSyncContact = async (payload: any): Promise<any> => {
   try {
     const response = await api.post('/sync-contacts', payload);
+    return response.data;
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+export const getContactBallance = async (id: number): Promise<string> => {
+  try {
+    const response = await api.get(`/contact-balance/${id}`);
     return response.data;
   } catch (error: any) {
     throw error;

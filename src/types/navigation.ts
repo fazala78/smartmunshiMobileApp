@@ -1,4 +1,5 @@
 import { Contact } from './contact';
+import { Product } from './Product';
 
 export type RootStackParamList = {
   TenantVerification: undefined;
@@ -30,5 +31,22 @@ export type RootStackParamList = {
   expensePayment: { item: any };
   dailyCashReport: undefined;
   Assembly: undefined;
-  subLots: { lotId: number };
+  subLots: { lotId: number; lotNumber: string; depth: number };
+  addLot: undefined;
+  nextProcess: undefined;
+  stockify: undefined;
+  issueStock: undefined;
+  claim: undefined;
+  vendors: undefined;
+  lotLedger: {
+    contact: Contact;
+  };
+  products: undefined;
+  productLedger: {
+    product: Product;
+  };
+  rawProducts: undefined;
+  rawProductLedger: {
+    product: any;
+  };
 };
