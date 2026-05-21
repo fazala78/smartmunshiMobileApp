@@ -39,6 +39,8 @@ import { getCashReport } from '../services/dailyCashReportService';
 import useCurrency from '../utils/currency';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { CashEntry, CashReportResponse } from '../types/dailyCashReport';
+import { Currency } from '../types/Currency';
+import DailyCashSummary from '../components/DailyCashSummary';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -202,6 +204,7 @@ const DailyCashReportScreen = () => {
 
                     {/* Date */}
                     <Text
+                        // eslint-disable-next-line react-native/no-inline-styles
                         style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}
                         numberOfLines={1}
                     >
@@ -217,12 +220,12 @@ const DailyCashReportScreen = () => {
                             { flex: 0.9 },
                         ]}
                     >
-                        {formatBalance(amount ?? 0, currency)}
+                        {formatBalance(amount ?? 0, currency as Currency)}
                     </Text>
 
                     {/* Chevron — only shown when row is tappable */}
                     {isClickable
-                        ? <Icon name="chevron-right" size={16} color="#d1d5db" style={styles.rowChevron} />
+                        ? <Icon name="chevron-right" size={16} color={colors.gray400} style={styles.rowChevron} />
                         : <View style={styles.rowChevronPlaceholder} />
                     }
                 </TouchableOpacity>
@@ -233,7 +236,7 @@ const DailyCashReportScreen = () => {
     return (
         <>
             <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-                <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
                 <Header title="Daily Cash Report" navigation={null} />
 
@@ -273,7 +276,7 @@ const DailyCashReportScreen = () => {
                             <View style={[styles.totalBox, styles.totalBoxDebit]}>
                                 <Text style={styles.totalBoxLabel}>Total Cash In</Text>
                                 <Text style={styles.totalBoxAmountDebit}>
-                                    {formatBalance(report?.total_cash_in ?? 0, currency)}
+                                    {formatBalance(report?.total_cash_in ?? 0, currency as Currency)}
                                 </Text>
                             </View>
                             <View style={[styles.totalBox, styles.totalBoxCredit]}>
@@ -281,17 +284,17 @@ const DailyCashReportScreen = () => {
                                     Total Cash Out
                                 </Text>
                                 <Text style={styles.totalBoxAmountCredit}>
-                                    {formatBalance(report?.total_cash_out ?? 0, currency)}
+                                    {formatBalance(report?.total_cash_out ?? 0, currency as Currency)}
                                 </Text>
                             </View>
                         </View>
 
                         {/* ── Opening / Net / Closing balance strip ── */}
-                        <View style={styles.balanceRow}>
+                        <View style={styles.balanceRow}> 
                             <View style={styles.balanceItem}>
                                 <Text style={styles.balanceLabel}>Opening</Text>
                                 <Text style={styles.balanceValue}>
-                                    {formatBalance(report?.opening_balance ?? 0, currency)}
+                                    {formatBalance(report?.opening_balance ?? 0, currency as Currency)}
                                 </Text>
                             </View>
 
@@ -308,7 +311,7 @@ const DailyCashReportScreen = () => {
                                     ]}
                                 >
                                     {(report?.net_cash ?? 0) >= 0 ? '+' : ''}
-                                    {formatBalance(report?.net_cash ?? 0, currency)}
+                                    {formatBalance(report?.net_cash ?? 0, currency as Currency)}
                                 </Text>
                             </View>
 
@@ -324,11 +327,14 @@ const DailyCashReportScreen = () => {
                                             : styles.balanceNegative,
                                     ]}
                                 >
-                                    {formatBalance(report?.closing_balance ?? 0, currency)}
+                                    {formatBalance(report?.closing_balance ?? 0, currency as Currency)}
                                 </Text>
                             </View>
                         </View>
                     </View>
+
+                    {/* ── Summary by type ── */}
+                  
 
                     {/* ── Tables ── */}
                     {isLoading ? (
@@ -367,7 +373,7 @@ const DailyCashReportScreen = () => {
                                     <View style={styles.tableFooterRow}>
                                         <Text style={[styles.tableFooterLabel, { flex: 2.6 }]}>Total Cash In</Text>
                                         <Text style={[styles.tableFooterAmount, styles.tableFooterIn, { flex: 0.9 }]}>
-                                            {formatBalance(report?.total_cash_in ?? 0, currency)}
+                                            {formatBalance(report?.total_cash_in ?? 0, currency as Currency)}
                                         </Text>
                                     </View>
                                 </View>
@@ -402,14 +408,15 @@ const DailyCashReportScreen = () => {
                                     <View style={styles.tableFooterRow}>
                                         <Text style={[styles.tableFooterLabel, { flex: 2.6 }]}>Total Cash Out</Text>
                                         <Text style={[styles.tableFooterAmount, styles.tableFooterOut, { flex: 0.9 }]}>
-                                            {formatBalance(report?.total_cash_out ?? 0, currency)}
+                                            {formatBalance(report?.total_cash_out ?? 0, currency as Currency)}
                                         </Text>
                                     </View>
                                 </View>
                             </View>
-
+                                     <DailyCashSummary date={filters.date} />
                         </View>
                     )}
+                     
                 </ScrollView>
                 <BottomNavigation activeRoute="dailyCashReport" />
 
@@ -422,7 +429,7 @@ const DailyCashReportScreen = () => {
                 >
                     <View style={styles.filterSection}>
                         <ApiDropdown
-                            label="Debit Account"
+                            label="Paid To"
                             url="/search-account"
                             value={draftFilters.debitAccounts}
                             multiple
@@ -434,7 +441,7 @@ const DailyCashReportScreen = () => {
                     </View>
                     <View style={styles.filterSection}>
                         <ApiDropdown
-                            label="Credit Account"
+                            label="Received From"
                             url="/search-account"
                             value={draftFilters.creditAccounts}
                             multiple
@@ -511,13 +518,13 @@ const styles = StyleSheet.create({
         paddingBottom: 16,
         gap: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        borderBottomColor: colors.gray100,
     },
 
     totalsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 5 },
     totalBox: { flex: 1, borderRadius: 16, padding: 14, borderWidth: 1 },
-    totalBoxDebit: { backgroundColor: 'rgba(236,253,245,0.5)', borderColor: 'rgba(167,243,208,0.5)' },
-    totalBoxCredit: { backgroundColor: '#fff1f2', borderColor: '#ffe4e6' },
+    totalBoxDebit: { backgroundColor: colors.successLight, borderColor: colors.success  },
+    totalBoxCredit: { backgroundColor: colors.dangerLight, borderColor: colors.danger  },
     totalBoxLabel: { fontSize: 10, fontWeight: '700', color: colors.primary , letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
     totalBoxLabelCredit: { color: colors.danger  },
     totalBoxAmountDebit: { fontSize: 20, fontWeight: '900', color: colors.primary , letterSpacing: -0.5 },
@@ -529,16 +536,16 @@ const styles = StyleSheet.create({
         marginHorizontal: 5,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#f0f0f0',
-        backgroundColor: '#f8faf9',
+        borderColor: colors.gray100,
+        backgroundColor: colors.backgroundLight,
         overflow: 'hidden',
     },
     balanceItem: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4 },
-    balanceDivider: { width: 1, backgroundColor: '#e5e7eb', marginVertical: 10 },
+    balanceDivider: { width: 1, backgroundColor: colors.gray100, marginVertical: 10 },
     balanceLabel: {
         fontSize: 9,
         fontWeight: '700',
-        color: '#9ca3af',
+        color: colors.gray400,
         letterSpacing: 1.4,
         textTransform: 'uppercase',
         marginBottom: 4,
@@ -553,7 +560,7 @@ const styles = StyleSheet.create({
 
     // ── Sections ─────────────────────────────────────────────────────────
     transactionsSection: {
-        backgroundColor: '#f8faf9',
+        backgroundColor: colors.white,
         paddingHorizontal: 10,
         paddingTop: 16,
         paddingBottom: 120,
@@ -565,18 +572,18 @@ const styles = StyleSheet.create({
     sectionDotOut: { backgroundColor: colors.danger },
     sectionTitle: { fontSize: 13, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.2, flex: 1 },
     sectionBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 100, borderWidth: 1 },
-    sectionBadgeIn: { backgroundColor: 'rgba(236,253,245,0.8)', borderColor: '#d1fae5' },
-    sectionBadgeOut: { backgroundColor: '#fff1f2', borderColor: '#ffe4e6' },
+    sectionBadgeIn: { backgroundColor: colors.successLight, borderColor: colors.success  },
+    sectionBadgeOut: { backgroundColor: colors.dangerLight, borderColor: colors.danger  },
     sectionBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
     sectionBadgeTextIn: { color: colors.primary },
     sectionBadgeTextOut: { color: colors.danger },
 
-    // ── Table ─────────────────────────────────────────────────────────────
+    // ── Table ─────────────────────────────────────────────────────────
     tableCard: {
-        backgroundColor: '#fff',
-        borderRadius: 20,
+        backgroundColor: colors.white,  
+        borderRadius: 5,
         borderWidth: 1,
-        borderColor: '#f3f4f6',
+        borderColor: colors.gray100,
         overflow: 'hidden',
         ...Platform.select({
             ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 20 },
@@ -589,15 +596,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#f9fafb',
+        borderBottomColor: colors.gray100,
     },
-    tableRowAlt: { backgroundColor: '#fafafa' },
+    tableRowAlt: { backgroundColor: colors.backgroundLight },
     tableRowLast: { borderBottomWidth: 0 },
     tableHeaderRow: {
-        backgroundColor: '#f8faf9',
-        paddingVertical: 8,
+        backgroundColor: colors.backgroundLight,
+        paddingVertical: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        borderBottomColor: colors.gray100,
     },
     tableCell: { fontSize: 12, fontWeight: '500', color: '#374151' },
     tableCellPrimary: { fontSize: 12, fontWeight: '600', color: '#111827',textTransform:'capitalize' },
@@ -616,11 +623,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 14,
         paddingVertical: 12,
-        backgroundColor: '#f8faf9',
+        backgroundColor: colors.backgroundLight,
         borderTopWidth: 1,
-        borderTopColor: '#e5e7eb',
+        borderTopColor: colors.gray100,
     },
-    tableFooterLabel: { fontSize: 11, fontWeight: '800', color: '#374151', letterSpacing: 0.5, textTransform: 'uppercase' },
+    tableFooterLabel: { fontSize: 11, fontWeight: '800', color: colors.textPrimary, letterSpacing: 0.5, textTransform: 'uppercase' },
     tableFooterAmount: { fontSize: 14, fontWeight: '900', textAlign: 'right', letterSpacing: -0.3 },
     tableFooterIn: { color: colors.primary },
     tableFooterOut: { color: colors.danger },

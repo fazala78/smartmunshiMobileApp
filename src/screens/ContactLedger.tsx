@@ -36,6 +36,7 @@ import Empty from '../components/common/Empty';
 import { Badge } from '../components/ui/Badge';
 import FilterModal from '../components/FilterModal';
 import ContactLedgerDialog from './modals/ContactLedgerDialog';
+import { toDateString } from '../utils/stringUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,8 +182,8 @@ const ContactLedger: React.FC<Props> = ({ route }) => {
         setEndDate(end);
         setDraftFilters((prev) => ({
             ...prev,
-            fromDate: start ? start.toISOString().split('T')[0] : '',
-            toDate: end ? end.toISOString().split('T')[0] : '',
+            fromDate: start ? toDateString(start) : '',
+            toDate: end ? toDateString(end) : '',
         }));
     }, []);
 
@@ -519,7 +520,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
         flex: 1,
         textAlign: 'center',
-      },
+    },
     downloadButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
     downloadButtonText: { fontSize: 20, color: colors.primary },
 

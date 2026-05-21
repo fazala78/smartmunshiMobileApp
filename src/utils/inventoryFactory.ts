@@ -1,5 +1,6 @@
 import { Currency } from '../types/contact';
 import { Inventory } from '../types/Inventory';
+import { StockTransferPayload } from '../types/stockTransfer';
 
 export const createInventory = (currency: Currency): Inventory => ({
   contact: null,
@@ -45,4 +46,11 @@ export const createInventory = (currency: Currency): Inventory => ({
   },
 
   invoice_number: '',
+});
+
+export const stockTransfer = (currency: Currency): StockTransferPayload => ({
+  cart: [],
+  date: new Date(),
+  destination: null,
+  currency: currency,
 });

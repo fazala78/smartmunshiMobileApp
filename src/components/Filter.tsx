@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors } from '../theme';
-import { TextInput } from 'react-native-paper';
 import FilterBtn from './ui/FilterBtn';
 
 
@@ -29,7 +28,6 @@ const Filter = <T extends HasSearchQuery>(props: FilterProps<T>) => {
           </View>
           <TextInput
             style={styles.searchInput}
-            underlineColor="transparent"
             placeholder={props.placeHolder}
             placeholderTextColor="#61896f"
             value={props.filters.searchQuery}

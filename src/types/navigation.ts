@@ -1,3 +1,4 @@
+import { BankAccount } from './bankList';
 import { Contact } from './contact';
 import { Product } from './Product';
 
@@ -9,6 +10,8 @@ export type RootStackParamList = {
   Journal: undefined;
   Menu: undefined;
   Billing: undefined;
+  StockTransfer: undefined;
+  CashTransfer: undefined;
   ContactLedger: {
     contact: Contact;
   };
@@ -42,11 +45,15 @@ export type RootStackParamList = {
     contact: Contact;
   };
   products: undefined;
+  bankList: undefined;
   productLedger: {
     product: Product;
   };
   rawProducts: undefined;
   rawProductLedger: {
     product: any;
+  };
+  AccountLedger: {
+    account: BankAccount;
   };
 };

@@ -1,4 +1,7 @@
-import { CashReportResponse } from '../types/dailyCashReport';
+import {
+  CashReportResponse,
+  CashSummaryResponse,
+} from '../types/dailyCashReport';
 import api from './api';
 
 export const getCashReport = async (
@@ -42,6 +45,27 @@ export const getCashReport = async (
     throw (
       error.response?.data || {
         message: error.message || 'Failed to get journals',
+      }
+    );
+  }
+};
+
+export const getCashSummary = async (
+  date?: string,
+): Promise<CashSummaryResponse> => {
+  try {
+    const params: any = {};
+    if (date) {
+      params.date = date;
+    }
+    const response = await api.get<CashSummaryResponse>('/daily-cash-summary', {
+      params,
+    });
+    return response.data;
+  } catch (error: any) {
+    throw (
+      error.response?.data || {
+        message: error.message || 'Failed to get cash summary',
       }
     );
   }

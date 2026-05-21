@@ -57,10 +57,14 @@ export const searchProducts = (query: string): Cart[] => {
   const products = getAllProducts();
   if (!query.trim()) return products;
   const lower = query.toLowerCase().trim();
-  return products.filter(
-    p => p.name?.toLowerCase().includes(lower),
-    ///|| p.sku?.toLowerCase().includes(lower), // ← SKU search too
-  );
+  return products.filter(p => p.name?.toLowerCase().includes(lower));
+};
+
+export const searchProductByBarcode = (barcode: string): Cart | null => {
+  const trimmed = barcode.trim();
+  if (!trimmed) return null;
+  const products = getAllProducts();
+  return products.find(p => p.barcode === trimmed) ?? null;
 };
 
 // ── Sync time tracking ──────────────────────────────────────────────────────

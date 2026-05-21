@@ -67,6 +67,8 @@ const quickActions: QuickAction[] = [
   { id: 8, route: 'AddProduct', title: 'Add Product', subtitle: 'Add New Pro.', icon: 'inventory', color: '#0D9488', backgroundColor: '#CCFBF1' },
   { id: 9, route: 'Assembly', title: 'Assembly', subtitle: 'Production', icon: 'build', color: colors.warning, backgroundColor: colors.warningLight },
   { id: 10, route: 'JournalEntry', title: 'Journal', subtitle: 'Manual Entry', icon: 'menu-book', color: colors.gray500, backgroundColor: colors.gray100 },
+  { id: 11, route: 'StockTransfer', title: 'Stock Transfer', subtitle: 'Transfer Inventory', icon: 'swap-horiz', color: colors.success, backgroundColor: colors.successLight },
+  { id: 12, route: 'CashTransfer', title: 'Cash Transfer', subtitle: 'Transfer Cash', icon: 'currency-exchange', color: colors.info, backgroundColor: colors.infoLight },
 ];
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
@@ -268,7 +270,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         <View style={styles.quickActionsGrid}>
-          {quickActions.map((action) => (
+          {quickActions.filter(action => (action.route !== 'StockTransfer' && action.route !== 'CashTransfer') || branches.length > 1).map((action) => (
             <TouchableOpacity
               key={action.id}
               style={[

@@ -22,7 +22,7 @@ const ContactProfile: React.FC<ContactLeftProps> = ({
             case 'walk-in':
                 return colors.info;
             default:
-                return colors.primary;;
+                return colors.warningDark; // Default color for unknown types
         }
     };
 

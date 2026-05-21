@@ -20,3 +20,15 @@ export interface CashReportResponse {
   net_cash: number;
   closing_balance: number;
 }
+
+export interface CashSummaryItem {
+  type: string;
+  label: string;
+  amount: number;
+  count: number;
+}
+
+export interface CashSummaryResponse {
+  debit_by_type: CashSummaryItem[];
+  credit_by_type: CashSummaryItem[];
+}

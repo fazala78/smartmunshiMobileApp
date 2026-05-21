@@ -333,7 +333,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 )}
 
                 {/* Live Subtotal */}
-                {pendingProduct.subtotal > 0 && (
+                
+                {!showPrice && pendingProduct.subtotal > 0 && (
                   <View style={styles.summary}>
                     <Text style={styles.summaryText}>
                       Subtotal: ${pendingProduct.subtotal.toFixed(2)}

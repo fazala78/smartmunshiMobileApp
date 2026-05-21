@@ -3,6 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
+  ToastAndroid,
+  Platform,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CartItemRow from '../components/CartItemRow';
@@ -12,7 +15,10 @@ import { Cart, ConsumProducts, Inventory } from '../types/Inventory';
 import useConfiguration from '../utils/configuration';
 import LocalProductDropDown from './LocalProductDropDown';
 import ProductDropdown from './ProductDropdown';
+import BarcodeScannerModal from './BarcodeScannerModal';
 import { LotFormData } from '../types/assembly';
+import { StockTransferPayload } from '../types/stockTransfer';
+import { searchProductByBarcode } from '../services/storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +29,7 @@ type CartAttribute = {
 
 
 
-type ShoppingProps<T extends Inventory | LotFormData> = {
+type ShoppingProps<T extends Inventory | LotFormData | StockTransferPayload> = {
   payload: T;
   setPayload: Dispatch<SetStateAction<T>>;
   attribute: string;
@@ -41,7 +47,7 @@ const getItems = <T extends Inventory | LotFormData>(payload: T, attribute: stri
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function Shopping<T extends Inventory | LotFormData>({
+export default function Shopping<T extends Inventory | LotFormData | StockTransferPayload>({
   payload,
   setPayload,
   attribute,
@@ -56,6 +62,7 @@ export default function Shopping<T extends Inventory | LotFormData>({
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Cart | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [barcodeScannerVisible, setBarcodeScannerVisible] = useState(false);
   const configuration = useConfiguration();
 
 
@@ -137,6 +144,31 @@ export default function Shopping<T extends Inventory | LotFormData>({
 
 
 
+  // ── Barcode scan result ───────────────────────────────────────────────────
+  const handleBarcodeScanned = (barcode: string) => {
+    setBarcodeScannerVisible(false);
+    const product = searchProductByBarcode(barcode);
+    if (!product) {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(`No product found for barcode: ${barcode}`, ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Not Found', `No product found for barcode: ${barcode}`);
+      }
+      return;
+    }
+    const lotPayload = payload as LotFormData;
+    setPendingProduct({
+      ...product,
+      price: parseFloat(String(product.price ?? 0)),
+      quantity: 1,
+      ...(lotPayload?.consum_products
+        ? { consum_products: lotPayload.consum_products as ConsumProducts[] }
+        : {}),
+    });
+    setEditingIndex(null);
+    setAddItemModalVisible(true);
+  };
+
   // ── Dismiss without saving ────────────────────────────────────────────────
   const handleDismissAddItem = () => {
     setAddItemModalVisible(false);
@@ -215,7 +247,7 @@ export default function Shopping<T extends Inventory | LotFormData>({
             label="Add Items"
             placeholder="Search products or SKU..."
             showBarcodeBtn={true}
-            onBarcodePress={() => console.log('open barcode scanner')}
+            onBarcodePress={() => setBarcodeScannerVisible(true)}
             autoReset={true}
             zIndex={3000}
             onSelect={handleProductSelect}
@@ -264,7 +296,13 @@ export default function Shopping<T extends Inventory | LotFormData>({
         configuration={configuration}
         showPrice={showPrice}
         attribute={attribute}
+      />
 
+      {/* Barcode scanner */}
+      <BarcodeScannerModal
+        visible={barcodeScannerVisible}
+        onClose={() => setBarcodeScannerVisible(false)}
+        onBarcodeScanned={handleBarcodeScanned}
       />
     </>
   );

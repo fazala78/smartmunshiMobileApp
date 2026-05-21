@@ -79,15 +79,11 @@ const TransactionSummary: React.FC<TransactionSummaryProps> = ({ payload, showBa
 
         {showBalanceOverview && payload.contact && (
           <>
-            <View style={s.balanceCardHeader}>
-              <Text style={s.balanceHeading}>Contact balance overview</Text>
-              <Text style={s.balanceSubtitle}>Previous balance and projected balance after this transaction</Text>
-            </View>
+           
 
             <View style={s.balanceRow}>
               <View>
                 <Text style={s.balanceLabel}>Previous balance</Text>
-                <Text style={s.balanceNote}>Current contact balance before checkout</Text>
               </View>
               <Text style={s.balanceValue}>{fmtSigned(previousBalance)}</Text>
             </View>

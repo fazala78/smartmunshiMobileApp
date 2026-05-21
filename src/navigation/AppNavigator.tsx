@@ -50,6 +50,10 @@ import ProductsScreen from '../screens/ProductsScreen';
 import ProductLedgerScreen from '../screens/ProductLedgerScreen';
 import RawProductsScreen from '../screens/RawProductsScreen';
 import RawProductLedgerScreen from '../screens/RawProductLedgerScreen';
+import StockTransfer from '../screens/StockTransfer';
+import CashTransferScreen from '../screens/CashTransferScreen';
+import BankListScreen from '../screens/BankListScreen';
+import AccountLedgerScreen from '../screens/AccountLedgerScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -151,10 +155,15 @@ const AppNavigator: React.FC = () => {
           <Stack.Screen name="claim" component={ClaimScreen} options={{ headerShown: false, gestureEnabled: true }} />
           <Stack.Screen name="vendors" component={VendorsScreen} options={{ headerShown: false, gestureEnabled: true }} />
           <Stack.Screen name="lotLedger" component={LotProcessingLedger} options={{ headerShown: false, gestureEnabled: true }} />
-           <Stack.Screen name="products" component={ProductsScreen} options={{ headerShown: false, gestureEnabled: true }} />
-            <Stack.Screen name="productLedger" component={ProductLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
-             <Stack.Screen name="rawProducts" component={RawProductsScreen} options={{ headerShown: false, gestureEnabled: true }} />
-               <Stack.Screen name="rawProductLedger" component={RawProductLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+          <Stack.Screen name="products" component={ProductsScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="productLedger" component={ProductLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+          <Stack.Screen name="rawProducts" component={RawProductsScreen} options={{ headerShown: false, gestureEnabled: true }} />
+          <Stack.Screen name="rawProductLedger" component={RawProductLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+          <Stack.Screen name="StockTransfer" component={StockTransfer} options={{ headerShown: false, gestureEnabled: false }} />
+           <Stack.Screen name="CashTransfer" component={CashTransferScreen} options={{ headerShown: false, gestureEnabled: false }} />
+             <Stack.Screen name="bankList" component={BankListScreen} options={{ headerShown: false, gestureEnabled: true }} />
+              <Stack.Screen name="AccountLedger" component={AccountLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+
         </Stack.Navigator>
       </NavigationContainer>
     </ContactSyncProvider>
