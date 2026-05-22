@@ -13,6 +13,9 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography } from '../theme';
 import { searchProducts } from '../services/storage';
+import useCurrency, { formatBalance } from '../utils/currency';
+import { Currency } from '../types/Currency';
+
 
 export interface BaseRecord {
   id?: number | string;
@@ -69,6 +72,8 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
     const [open, setOpen]           = useState(false);
     const [inputText, setInputText] = useState('');
     const [items, setItems]         = useState<ProductItem<any>[]>([]);
+      const currency = useCurrency();
+    
 
     // ── removed: initialLoading, searchLoading, error, abortController ──
     // Local search is instant — no async, no loading states needed
@@ -178,7 +183,8 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
             <Text style={styles.listItemName} numberOfLines={1}>{item.label}</Text>
             {item.sku && <Text style={styles.listItemSku}>SKU: {item.sku}</Text>}
           </View>
-          <Text style={styles.listItemPrice}>${item.price.toFixed(2)}</Text>
+          <Text style={styles.listItemPrice}>
+             {formatBalance(item.price, currency as Currency)}</Text>
         </TouchableOpacity>
       </React.Fragment>
     );

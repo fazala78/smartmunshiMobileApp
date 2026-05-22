@@ -238,7 +238,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.salesLabel}>Cash In Hand</Text>
             {!isLoading && !isRefetching ? (
               <View style={styles.amountContainer}>
-                <Text style={styles.salesAmount}>
+                <Text style={[styles.salesAmount, (data?.balance ?? 0) < 0 && { color: colors.danger }]}>
                   {formatBalance(data?.balance, data?.currency)}
                 </Text>
                 <TouchableOpacity
