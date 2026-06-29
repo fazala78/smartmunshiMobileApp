@@ -94,11 +94,8 @@ function validateScreen(screenIndex: number, data: LotFormData): string | null {
     }
     case 5: {
       const isPurchase = data.source === 'purchase';
-      const items = isPurchase ? data.mixed_cart : data.cart;
-      if (!items || items.length === 0)
-        return isPurchase
-          ? 'Please add at least one item to the mixed cart before continuing.'
-          : 'Please add at least one item to the cart before continuing.';
+      if (!isPurchase && (!data.cart || data.cart.length === 0))
+        return 'Please add at least one item to the cart before continuing.';
       return null;
     }
     case 6:
@@ -264,6 +261,8 @@ export default function AddLotScreen({ navigation }: Props) {
             data={formData}
             setFormData={setFormData}
             formDataAttribute={formData.source === 'purchase' ? 'mixed_cart' : 'cart'}
+            itemSearchUrl='search-lot-products'
+            creatable={false}
           />
         );
       case 6:
@@ -281,8 +280,9 @@ export default function AddLotScreen({ navigation }: Props) {
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+      <View style={styles.flex}>
         <Header title="Manufacturing Workflow" navigation={navigation} />
 
         <View style={styles.dotsContainer}>
@@ -337,6 +337,7 @@ export default function AddLotScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
         </View>
+      </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

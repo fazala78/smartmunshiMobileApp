@@ -10,6 +10,7 @@ import { getInvoiceItemSubTotal } from '../../utils/lineItemCalculation';
 import QuantityField from '../../components/ui/Quantityfield';
 import { ConsumableProductsSection } from '../../components/assembly/ConsumableProductsSection';
 import AsyncDropdown from '../../components/AsyncDropdown';
+import PacketDetailInput from '../../components/PacketDetailInput';
 
 export interface AddItemModalProps {
   visible: boolean;
@@ -32,11 +33,13 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 }) => {
   const isEditing = editingIndex !== null;
   const [discountTypeOpen, setDiscountTypeOpen] = useState(false);
-  console.log(pendingProduct);
+
 
   const saleTaxes: any[] = configuration?.sale_taxes ?? [];
   const purchaseTaxes: any[] = configuration?.purchase_taxes ?? [];
   const showDiscount: boolean = configuration?.line_discount ?? false;
+  const hasBagsActive: boolean = configuration?.hasBagsActive ?? false;
+  const hasBagsDetailActive: boolean = configuration?.hasBagsDetailActive ?? false;
   const [areConsumProductsValid, setAreConsumProductsValid] = useState(true);
   const [showValidationError, setShowValidationError] = useState(false);
 
@@ -165,10 +168,20 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   />
                 )}
 
-                {/* Quantity */}
+                {/* Bags/Pack + Quantity */}
 
                 <View style={styles.row}>
-                  <View style={[styles.rowItem, { flex: 2 }]}>
+                  {hasBagsActive && pendingProduct.opening_bags != null && (
+                    <View style={styles.rowItem}>
+                      <QuantityField
+                        label="Bags/Pack"
+                        value={pendingProduct.bags ?? 0}
+                        onChange={(bags) => update({ bags })}
+                        min={0}
+                      />
+                    </View>
+                  )}
+                  <View style={[styles.rowItem, pendingProduct.opening_bags == null && { flex: 2 }]}>
                     <QuantityField
                       value={pendingProduct.quantity ?? 1}
                       onChange={(qty) => update({ quantity: qty })}
@@ -177,22 +190,27 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   </View>
                   {!pendingProduct.id && (
                     <View style={styles.rowItem}>
-                    <AsyncDropdown
-                      url="/units"
-                      searchParam="q"
-                      minSearchLength={1}
-                      creatable
-                      label="Unit"
-                      leadingIconName="straighten"
-                      inputBg={colors.backgroundLight}
-                      onSelect={(v) => update({ unit: v?.symbol as string })} value={null} />
-                  </View>
+                      <AsyncDropdown
+                        url="/units"
+                        searchParam="q"
+                        minSearchLength={1}
+                        creatable
+                        label="Unit"
+                        leadingIconName="straighten"
+                        inputBg={colors.backgroundLight}
+                        onSelect={(v) => update({ unit: v?.symbol as string })} value={null} />
+                    </View>
                   )}
-                  
+
                 </View>
 
-
-
+                {hasBagsDetailActive && (
+                  <PacketDetailInput
+                    hasBagsActive={hasBagsActive}
+                    openingBags={pendingProduct.opening_bags}
+                    onParsed={(fields) => update(fields)}
+                  />
+                )}
 
 
                 {/* Price */}
@@ -333,7 +351,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 )}
 
                 {/* Live Subtotal */}
-                
+
                 {!showPrice && pendingProduct.subtotal > 0 && (
                   <View style={styles.summary}>
                     <Text style={styles.summaryText}>
@@ -444,6 +462,6 @@ const styles = StyleSheet.create({
   confirmBtnDisabled: {
     opacity: 0.6,
   },
-  row: { flexDirection: 'row', gap: 12, marginTop:5 },
+  row: { flexDirection: 'row', gap: 12, marginTop: 20 },
   rowItem: { flex: 1 },
 });

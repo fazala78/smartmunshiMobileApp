@@ -17,11 +17,12 @@ interface PaymentMethodsProps {
   payload: PaymentPayload;
   update: (fields: Partial<PaymentPayload>) => void;
   methods: { key: string; label: string; icon: string }[];
+  onRemarksFocus?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, methods }) => {
+const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, methods, onRemarksFocus }) => {
 
   const currency = useCurrency();
   const amountInputRef = useRef<TextInput>(null);
@@ -31,6 +32,21 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
   const displayAmount = isAmountLocked
     ? String(payload.cheque?.amount ?? '')
     : String(payload.amount ?? '');
+
+  // ── Reusable fields ───────────────────────────────────────────────────────
+  const bankAccountField = (
+    <AsyncDropdown
+      url="/accounts"
+      searchParam="q"
+      minSearchLength={3}
+      creatable={false}
+      label="Select Bank Account"
+      leadingIconName="account-balance-wallet"
+      inputBg={colors.backgroundLight}
+      onSelect={(v) => update({ account: v as unknown as Account })}
+      value={payload?.account as Account}
+    />
+  );
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChequeSelect = (v: Cheque | null) => {
@@ -94,28 +110,27 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
 
       {/* Bank / Online fields */}
       <View style={styles.conditionalFields}>
-        {isBankMethod && (
-          <AsyncDropdown
-            url="/accounts"
-            searchParam="q"
-            minSearchLength={3}
-            creatable={false}
-            label="Select Bank Account"
-            leadingIconName="account-balance-wallet"
-            inputBg={colors.backgroundLight}
-            onSelect={(v) => update({ account: v as unknown as Account })} 
-            value={payload?.account as Account}          />
-        )}
-        {isShowSlip && (
-          <InputField
-            bg="white"
-            label="Transaction #"
-            type="text"
-            value={payload.slip_number ?? ''}
-            onChangeText={(v) => update({ slip_number: v })}
-            placeholder="TXN-9988-221"
-            icon="tag"
-          />
+        {(payload.type === 'online' || isShowSlip) && (
+          <View style={styles.row}>
+            {payload.type === 'online' && (
+              <View style={styles.rowItem}>
+                {bankAccountField}
+              </View>
+            )}
+            {isShowSlip && (
+              <View style={styles.rowItem}>
+                <InputField
+                  bg="white"
+                  label="Transaction #"
+                  type="text"
+                  value={payload.slip_number ?? ''}
+                  onChangeText={(v) => update({ slip_number: v })}
+                  placeholder="TXN-9988-221"
+                  icon="tag"
+                />
+              </View>
+            )}
+          </View>
         )}
       </View>
 
@@ -139,29 +154,40 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
       {/* Cheque fields */}
       {isChequeMethod && (
         <View style={styles.conditionalFields}>
-          <InputField
-            bg="white"
-            textAlign="left"
-            label="Cheque No#"
-            type="text"
-            value={payload.cheque_number ?? ''}
-            onChangeText={(v) => update({ cheque_number: v })}
-            placeholder="Cheque Number"
-            icon="pin"
-          />
-          {payload.type === 'cheque' && (
-            <AsyncDropdown
-              url="/banks"
-              searchParam="q"
-              minSearchLength={4}
-              creatable={false}
-              label="Issuing Bank"
-              leadingIconName="account-balance"
-              inputBg={colors.backgroundLight}
-              onSelect={(v) => update({ bank: v as unknown as Bank })}
-              value={payload.bank as Account}
-            />
-          )}
+          <View style={styles.row}>
+            <View style={styles.rowItem}>
+              <InputField
+                bg="white"
+                textAlign="left"
+                label="Cheque No#"
+                type="text"
+                value={payload.cheque_number ?? ''}
+                onChangeText={(v) => update({ cheque_number: v })}
+                placeholder="Cheque Number"
+                icon="pin"
+              />
+            </View>
+            {payload.type === 'cheque' && (
+              <View style={styles.rowItem}>
+                <AsyncDropdown
+                  url="/banks"
+                  searchParam="q"
+                  minSearchLength={4}
+                  creatable={false}
+                  label="Issuing Bank"
+                  leadingIconName="account-balance"
+                  inputBg={colors.backgroundLight}
+                  onSelect={(v) => update({ bank: v as unknown as Bank })}
+                  value={payload.bank as Account}
+                />
+              </View>
+            )}
+            {payload.type === 'account_cheque' && (
+              <View style={styles.rowItem}>
+                {bankAccountField}
+              </View>
+            )}
+          </View>
           <DatePickerField
             label="Cheque Date"
             value={payload.cheque_date as Date ?? null}
@@ -232,7 +258,9 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
         icon="description"
         multiline
         numberOfLines={3}
+        onFocus={onRemarksFocus}
       />
+       <View style={{ height: 20 }} />
     </>
   );
 };
@@ -250,6 +278,8 @@ const styles = StyleSheet.create({
   amountPrefix: { fontSize: 24, fontWeight: '800', color: colors.textPlaceholder, marginRight: 4 },
   amountLockedHint: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic', marginTop: 2 },
   conditionalFields: { gap: 16 },
+  row: { flexDirection: 'row', gap: 12 },
+  rowItem: { flex: 1 },
   chequeInfoCard: { backgroundColor: colors.primaryMuted, borderRadius: 12, padding: 14, gap: 8 },
   chequeInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   chequeInfoLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },

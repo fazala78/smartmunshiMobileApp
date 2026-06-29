@@ -469,14 +469,16 @@ const LotCard: React.FC<LotCardProps> = ({ item, onAction, onTitlePress }) => {
                 {/* Right: yield badge + action button + delete */}
                 <View style={styles.headerRight}>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity
-                            style={styles.headerActionsBtn}
-                            onPress={() => setSheetVisible(true)}
-                            activeOpacity={0.72}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                            <Icon name="more-vert" size={20} color={colors.gray700} />
-                        </TouchableOpacity>
+                        {item.parent_step !== null && (
+                            <TouchableOpacity
+                                style={styles.headerActionsBtn}
+                                onPress={() => setSheetVisible(true)}
+                                activeOpacity={0.72}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                                <Icon name="more-vert" size={20} color={colors.gray700} />
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity
                             style={styles.deleteBtn}
                             onPress={handleDelete}

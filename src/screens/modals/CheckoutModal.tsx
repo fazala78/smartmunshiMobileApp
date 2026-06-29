@@ -300,10 +300,30 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </View>
                   </View>
 
+                  {/* Phone number — only for walk-in / unregistered contacts */}
+                  {!payload.contact?.id && (
+                    <InputField
+                      bg="white"
+                      textAlign="left"
+                      label="Phone Number"
+                      type="phone"
+                      value={payload.contact?.phone ?? ''}
+                      onChangeText={(v) =>
+                        setPayload((prev) =>
+                          prev && prev.contact
+                            ? { ...prev, contact: { ...prev.contact, phone: v } } as Inventory
+                            : prev
+                        )
+                      }
+                      placeholder="e.g. 03001234567"
+                      icon="phone"
+                    />
+                  )}
+
                   {/* Mark as Paid */}
                   <View style={s.markPaidCard}>
                     <View style={s.flexOne}>
-                      <Text style={s.markPaidTitle}>Mark as Paid</Text>
+                      <Text style={s.markPaidTitle}>Cash Sale</Text>
                       <Text style={s.markPaidSub}>
                         {payload.mark_paid
                           ? `Cash · $${computeTotal(payload).toFixed(2)}`

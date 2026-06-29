@@ -17,6 +17,8 @@ export default function PurchaseStep({ data, setFormData }: Step2Props) {
     <ScrollView
       contentContainerStyle={{ gap: 14, padding: 20 }}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.stepTitle}>Purchase Product</Text>
@@ -41,7 +43,7 @@ export default function PurchaseStep({ data, setFormData }: Step2Props) {
         attribute="cart"
         creatable={true}
         payload={data}
-        searchingType="live"
+        searchingType="none"
         setPayload={setFormData}
         listingTitle="CURRENT ORDER"
       />

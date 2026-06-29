@@ -83,10 +83,10 @@ const TenantVerificationScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleVerifyTenant = async (): Promise<void> => {
-    if (!permissionGranted) {
+    if (!permissionGranted && Platform.OS === 'android') {
       await handleRequestPermission();
       return;
-    }
+ }
     if (!tenantKey.trim()) {
       setError('Please enter a tenant key');
       return;

@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    KeyboardAvoidingView, ActivityIndicator, Platform, Image,
+    ActivityIndicator, Image, Keyboard,
+    Modal, FlatList, TextInput, SafeAreaView as RNSafeAreaView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
+import Contacts, { Contact } from 'react-native-contacts';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
@@ -20,6 +22,7 @@ import Header from '../components/ui/Header';
 import FooterError from '../components/common/FooterError';
 import { useSuccessSound } from '../utils/useSuccessSound';
 import { getLastContactsSyncTime, setLastContactsSyncTime } from '../services/storage';
+import { checkContactsPermission, requestContactsPermission } from '../services/contactSyncService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,8 +61,13 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
     const [success, setSuccess] = useState<SuccessResponse | null>(null);
     const [showSuccess, setShowSuccess] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
+    const [showContactPicker, setShowContactPicker] = useState(false);
+    const [deviceContacts, setDeviceContacts] = useState<Contact[]>([]);
+    const [contactSearch, setContactSearch] = useState('');
+    const [loadingContacts, setLoadingContacts] = useState(false);
+    const [anyDropdownOpen, setAnyDropdownOpen] = useState(false);
+    const scrollViewRef = useRef<ScrollView>(null);
     const { play } = useSuccessSound();
-
 
     const currency = useCurrency();
     let resetSwipe: (() => void) | null = null;
@@ -67,6 +75,49 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
     // ── Helper ────────────────────────────────────────────────────────────────
     const update = (fields: Partial<ContactForm>) =>
         setForm((prev) => ({ ...prev, ...fields }));
+
+    // ── Contact Picker ────────────────────────────────────────────────────────
+    const handleImportFromContacts = async () => {
+        setShowContactPicker(true);
+        setLoadingContacts(true);
+        try {
+            let hasPermission = await checkContactsPermission();
+            if (!hasPermission) {
+                hasPermission = await requestContactsPermission();
+            }
+            if (!hasPermission) {
+                setShowContactPicker(false);
+                showError('Contacts permission is required to import contacts.');
+                return;
+            }
+            const all = await Contacts.getAll();
+            all.sort((a, b) => (a.givenName ?? '').localeCompare(b.givenName ?? ''));
+            setDeviceContacts(all);
+        } catch (e: any) {
+            setShowContactPicker(false);
+            showError(e?.message ?? 'Could not load contacts.');
+        } finally {
+            setLoadingContacts(false);
+        }
+    };
+
+    const handleSelectContact = (contact: Contact) => {
+        const name = [contact.givenName, contact.familyName].filter(Boolean).join(' ');
+        const phone = contact.phoneNumbers[0]?.number ?? '';
+        const email = contact.emailAddresses[0]?.email ?? '';
+        update({ name, phone, email });
+        setShowContactPicker(false);
+        setContactSearch('');
+    };
+
+    const filteredContacts = useMemo(() => {
+        const q = contactSearch.trim().toLowerCase();
+        if (!q) return deviceContacts;
+        return deviceContacts.filter(c => {
+            const fullName = [c.givenName, c.familyName].filter(Boolean).join(' ').toLowerCase();
+            return fullName.includes(q) || c.phoneNumbers.some(p => p.number.includes(q));
+        });
+    }, [deviceContacts, contactSearch]);
 
     // ── Toast ──────────────────────────────────────────────────────────────────
     const showError = (message: string) => {
@@ -107,7 +158,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
         }
         try {
             setLoading(true);
-            const response = await createContact({ ...form, currency });
+            const response = await createContact({ ...form, currency  });
             play();
             setSuccess(response);
             setShowSuccess(true);
@@ -155,12 +206,100 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                 doneLabel="Done"
             />
 
+            {/* ── Contact Picker Modal ── */}
+            <Modal
+                visible={showContactPicker}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => { setShowContactPicker(false); setContactSearch(''); }}
+            >
+                <RNSafeAreaView style={styles.pickerContainer}>
+                    {/* Modal Header */}
+                    <View style={styles.pickerHeader}>
+                        <Text style={styles.pickerTitle}>Select Contact</Text>
+                        <TouchableOpacity
+                            style={styles.pickerCloseBtn}
+                            onPress={() => { setShowContactPicker(false); setContactSearch(''); }}
+                            activeOpacity={0.7}
+                        >
+                            <Icon name="close" size={20} color={colors.gray600} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Search */}
+                    <View style={styles.pickerSearchRow}>
+                        <Icon name="search" size={20} color={colors.gray400} style={styles.pickerSearchIcon} />
+                        <TextInput
+                            style={styles.pickerSearchInput}
+                            placeholder="Search name or phone..."
+                            placeholderTextColor={colors.gray400}
+                            value={contactSearch}
+                            onChangeText={setContactSearch}
+                            autoCorrect={false}
+                        />
+                        {contactSearch.length > 0 && (
+                            <TouchableOpacity onPress={() => setContactSearch('')} activeOpacity={0.7}>
+                                <Icon name="cancel" size={18} color={colors.gray400} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* List */}
+                    {loadingContacts ? (
+                        <View style={styles.pickerCenter}>
+                            <ActivityIndicator size="large" color={colors.primary} />
+                            <Text style={styles.pickerLoadingText}>Loading contacts…</Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={filteredContacts}
+                            keyExtractor={(item) => item.recordID}
+                            keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={filteredContacts.length === 0 ? styles.pickerCenter : undefined}
+                            ListEmptyComponent={
+                                <Text style={styles.pickerEmptyText}>No contacts found</Text>
+                            }
+                            renderItem={({ item }) => {
+                                const fullName = [item.givenName, item.familyName].filter(Boolean).join(' ') || 'Unnamed';
+                                const phone = item.phoneNumbers[0]?.number ?? '';
+                                const initials = [item.givenName?.[0], item.familyName?.[0]].filter(Boolean).join('').toUpperCase() || '?';
+                                return (
+                                    <TouchableOpacity
+                                        style={styles.pickerItem}
+                                        onPress={() => handleSelectContact(item)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.pickerAvatar}>
+                                            {item.hasThumbnail && item.thumbnailPath ? (
+                                                <Image source={{ uri: item.thumbnailPath }} style={styles.pickerAvatarImg} />
+                                            ) : (
+                                                <Text style={styles.pickerAvatarInitials}>{initials}</Text>
+                                            )}
+                                        </View>
+                                        <View style={styles.pickerItemInfo}>
+                                            <Text style={styles.pickerItemName} numberOfLines={1}>{fullName}</Text>
+                                            {phone ? <Text style={styles.pickerItemPhone} numberOfLines={1}>{phone}</Text> : null}
+                                        </View>
+                                        <Icon name="chevron-right" size={20} color={colors.gray300} />
+                                    </TouchableOpacity>
+                                );
+                            }}
+                        />
+                    )}
+                </RNSafeAreaView>
+            </Modal>
+
             {/* ── Header ── */}
             <Header title='New Contact' navigation={navigation} />
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    ref={scrollViewRef}
+                    style={styles.body}
+                    contentContainerStyle={styles.bodyContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={anyDropdownOpen ? 'none' : 'on-drag'}
+                    automaticallyAdjustKeyboardInsets
+                    showsVerticalScrollIndicator={false}>
 
 
                     {/* ── Avatar ── */}
@@ -181,12 +320,24 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                     {/* ── Identity ── */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Identity</Text>
-                        <InputField
-                            bg="white" label="Full Name" type="text"
-                            value={form.name}
-                            onChangeText={(v) => update({ name: v })}
-                            placeholder="Enter name" icon="badge"
-                        />
+
+                        <View style={styles.nameRow}>
+                            <View style={styles.flexOne}>
+                                <InputField
+                                    bg="white" label="Full Name" type="text"
+                                    value={form.name}
+                                    onChangeText={(v) => update({ name: v })}
+                                    placeholder="Enter name" icon="badge"
+                                />
+                            </View>
+                            <TouchableOpacity
+                                style={styles.phoneDirBtn}
+                                onPress={handleImportFromContacts}
+                                activeOpacity={0.75}
+                            >
+                                <Icon name="contacts" size={22} color={colors.primary} />
+                            </TouchableOpacity>
+                        </View>
                         <SelectionButton
                             label="Contact Type"
                             options={CONTACT_TYPES}
@@ -286,7 +437,14 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                             placeholder="Search City"
                             createLabel="Create City"
                             inputBg={colors.backgroundLight}
-                            onSelect={(v) => update({ city: v as unknown as ContactCity })} value={null} />
+                            onSelect={(v) => update({ city: v as unknown as ContactCity })}
+                            onOpen={() => {
+                                Keyboard.dismiss();
+                                setAnyDropdownOpen(true);
+                                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
+                            }}
+                            onClose={() => setAnyDropdownOpen(false)}
+                            value={null} />
 
                         <AsyncDropdown
                             url="/search-contact-categories"
@@ -298,7 +456,14 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                             placeholder="Search Category"
                             createLabel="Create Category"
                             inputBg={colors.backgroundLight}
-                            onSelect={(v) => update({ category: v as unknown as ContactCategory })} value={null} />
+                            onSelect={(v) => update({ category: v as unknown as ContactCategory })}
+                            onOpen={() => {
+                                Keyboard.dismiss();
+                                setAnyDropdownOpen(true);
+                                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
+                            }}
+                            onClose={() => setAnyDropdownOpen(false)}
+                            value={null} />
 
                     </View>
 
@@ -330,9 +495,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
                         onSwipeSuccess={handleSubmit}
                         forceReset={(reset: () => void) => { resetSwipe = reset; }}
                     />
-                    <Text style={styles.footerHint}>Confirm &amp; Create Contact</Text>
                 </View>
-            </KeyboardAvoidingView>
 
         </SafeAreaView>
     );
@@ -372,6 +535,28 @@ const styles = StyleSheet.create({
     balanceBadgeText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
     balanceToggleLabel: { fontSize: 11, fontWeight: '800', color: colors.gray500, letterSpacing: 0.8, textTransform: 'uppercase' },
 
-    footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.gray100 },
+    footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.gray100 },
     footerHint: { textAlign: 'center', marginTop: 10, fontSize: 10, fontWeight: '800', color: colors.gray400, letterSpacing: 2, textTransform: 'uppercase' },
+
+    nameRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    phoneDirBtn: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.primaryMuted, borderWidth: 1.5, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+
+    // Contact Picker Modal
+    pickerContainer: { flex: 1, backgroundColor: colors.white },
+    pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.gray100 },
+    pickerTitle: { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
+    pickerCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.backgroundLight, alignItems: 'center', justifyContent: 'center' },
+    pickerSearchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 12, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.backgroundLight, borderRadius: 12, gap: 8 },
+    pickerSearchIcon: { },
+    pickerSearchInput: { flex: 1, fontSize: 15, color: colors.gray900, padding: 0 },
+    pickerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+    pickerLoadingText: { marginTop: 12, fontSize: 13, color: colors.gray500 },
+    pickerEmptyText: { fontSize: 14, color: colors.gray400, textAlign: 'center' },
+    pickerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.gray100, gap: 14 },
+    pickerAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    pickerAvatarImg: { width: 44, height: 44 },
+    pickerAvatarInitials: { fontSize: 15, fontWeight: '700', color: colors.primary },
+    pickerItemInfo: { flex: 1 },
+    pickerItemName: { fontSize: 15, fontWeight: '600', color: colors.gray900 },
+    pickerItemPhone: { fontSize: 13, color: colors.gray500, marginTop: 2 },
 });

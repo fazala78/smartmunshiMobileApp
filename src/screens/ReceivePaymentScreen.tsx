@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-    View, ScrollView, StyleSheet,
-    KeyboardAvoidingView, ActivityIndicator, Platform,
+    View, Text, ScrollView, StyleSheet,
+    ActivityIndicator,
     Modal,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -60,6 +61,7 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
     const { play } = useSuccessSound();
+    const scrollViewRef = useRef<ScrollView>(null);
     let resetSwipe: (() => void) | null = null;
 
     const update = (fields: Partial<PaymentPayload>) =>
@@ -159,54 +161,67 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
 
             <Header title="Receive Payment" navigation={navigation} />
 
-
-
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                    {/* Contact */}
+            <ScrollView
+                ref={scrollViewRef}
+                style={styles.body}
+                contentContainerStyle={styles.bodyContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                automaticallyAdjustKeyboardInsets
+                showsVerticalScrollIndicator={false}>
+                {/* Contact */}
+                <View style={styles.contactCard}>
+                    <View style={styles.sectionLabelRow}>
+                        <Text style={styles.sectionLabel}>Customer</Text>
+                        <Text style={styles.requiredMark}>*</Text>
+                    </View>
                     <LocalDropdown<Contact>
-                        label="Contact"
-                        inputBg={colors.backgroundLight}
+                        showLabel={false}
+                        inputBg="transparent"
                         value={payload.contact as unknown as Contact}  // ← shows chip if set
                         creatable
-                        createLabel="Select Contact"
+                        createLabel="Create Contact"
+                        placeholder="Search or pick a customer…"
                         onSelect={(v) => update({ contact: v as unknown as Contact })}
                         labelResolver={(c) => c.name}
                         subLabelResolver={(c) => c.phone}
                     />
-
-                    <PaymentMethods update={update} payload={payload} methods={METHODS} />
-
-                    <View style={{ height: 32 }} />
-                </ScrollView>
-
-                <View style={styles.footer}>
-                    {footerError ? (
-                        <FooterError
-                            setFooterError={setFooterError}
-                            footerError={footerError}
-                        />
-
-                    ) : null}
-                    <SwipeButton
-                        title={loading ? 'Processing...' : 'Slide to confirm'}
-                        thumbIconComponent={ThumbIcon}
-                        railBackgroundColor={colors.primaryLight}
-                        railBorderColor={colors.primaryLight}
-                        railFillBackgroundColor={colors.primary}
-                        thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
-                        thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
-                        titleColor={colors.primaryDark}
-                        titleFontSize={15}
-                        height={52}
-                        swipeSuccessThreshold={70}
-                        disabled={loading}
-                        onSwipeSuccess={checkOut}
-                        forceReset={(reset: () => void) => { resetSwipe = reset; }}
-                    />
                 </View>
-            </KeyboardAvoidingView>
+
+                <PaymentMethods update={update} payload={payload} methods={METHODS}
+                onRemarksFocus={() =>
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
+                        }
+                         />
+
+                
+            </ScrollView>
+
+            <View style={styles.footer}>
+                {footerError ? (
+                    <FooterError
+                        setFooterError={setFooterError}
+                        footerError={footerError}
+                    />
+
+                ) : null}
+                <SwipeButton
+                    title={loading ? 'Processing...' : 'Slide to confirm'}
+                    thumbIconComponent={ThumbIcon}
+                    railBackgroundColor={colors.primaryLight}
+                    railBorderColor={colors.primaryLight}
+                    railFillBackgroundColor={colors.primary}
+                    thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
+                    thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
+                    titleColor={colors.primaryDark}
+                    titleFontSize={15}
+                    height={52}
+                    swipeSuccessThreshold={70}
+                    disabled={loading}
+                    onSwipeSuccess={checkOut}
+                    forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                />
+            </View>
             <Modal
                 visible={receiptModalVisible}
                 transparent
@@ -233,6 +248,27 @@ export default ReceivePaymentScreen;
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.white },
+    contactCard: {
+        backgroundColor: colors.primaryMuted,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: 14,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: Platform.OS === 'android' ? 0 : 2,
+    },
+    sectionLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 2 },
+    sectionLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: colors.gray400,
+        textTransform: 'uppercase',
+        letterSpacing: 1.1,
+    },
+    requiredMark: { fontSize: 11, fontWeight: '600', color: colors.danger },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray100 },
     backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
     headerTitle: { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },

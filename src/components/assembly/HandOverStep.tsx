@@ -1,14 +1,11 @@
 // steps/Step3.tsx
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { SectionLabel, ProcessCard } from './StepShared';
-import { LotFormData, Process } from '../../types/assembly';
+import { SectionLabel, ProcessSelector } from './StepShared';
+import { LotFormData } from '../../types/assembly';
 import { colors, spacing } from '../../theme';
 import LocalDropdown from '../LocallDropdown';
 import { Contact } from '../../types/contact';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-
 
 interface HandOverStepProp {
     data: LotFormData;
@@ -16,33 +13,6 @@ interface HandOverStepProp {
 }
 
 export default function HandOverStep({ data, setFormData }: HandOverStepProp) {
-
-    const [processes, setProcesses] = useState<Process[]>([]);
-
-    useEffect(() => {
-        const loadProcesses = async () => {
-            try {
-                const raw = await AsyncStorage.getItem('processes');
-                setProcesses(raw ? JSON.parse(raw) : []);
-            } catch {
-                setProcesses([]);
-            }
-        };
-        loadProcesses();
-    }, []);
-
-
-
-    const toggleProcess = (process: Process) => {
-        const selectedProcess = processes.find((p) => p.id === process.id);
-
-        if (!selectedProcess) return; // safety check
-
-        setFormData((prev: any) => ({
-            ...prev,
-            process: selectedProcess,
-        }));
-    };
 
 
 
@@ -77,16 +47,12 @@ export default function HandOverStep({ data, setFormData }: HandOverStepProp) {
                 <View style={styles.processHeaderRow}>
                     <SectionLabel text="Select Process" />
                 </View>
-                <View style={styles.processGrid}>
-                    {processes.map((item) => (
-                        <ProcessCard
-                            key={item.id}
-                            item={item}
-                            selected={data.process?.id === item.id}
-                            onPress={() => toggleProcess(item)}
-                        />
-                    ))}
-                </View>
+                <ProcessSelector
+                    value={data.process}
+                    onChange={(process) =>
+                        setFormData((prev) => ({ ...prev, process }))
+                    }
+                />
             </View>
         </ScrollView>
     );
@@ -121,5 +87,4 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: spacing.md,
     },
-    processGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
 });

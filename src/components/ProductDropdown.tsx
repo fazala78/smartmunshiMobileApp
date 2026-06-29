@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../services/api';
@@ -239,6 +240,7 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
     };
 
     const handleSelect = (item: ProductItem<any>): void => {
+      Keyboard.dismiss();
       onSelect(item._raw);
       if (autoReset) {
         setTimeout(() => handleReset(), 50);
@@ -276,6 +278,7 @@ const ProductDropdown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>
      */
     const handleCreate = async (): Promise<void> => {
       if (!trimmedInput || isCreating) return;
+      Keyboard.dismiss();
       setIsCreating(true);
       try {
         // Build a minimal synthetic product and fire onSelect immediately,

@@ -1,14 +1,42 @@
-import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { colors } from '../../theme';
-
-
+import React, { useEffect, useRef } from 'react';
+import { View, Image, Animated, StyleSheet } from 'react-native';
 
 const Loading = () => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Fade in on mount
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    // Continuous pulse: scale 1 → 1.08 → 1
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.08,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
   return (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color={colors.primary} />
-      <Text style={styles.loadingText}>Loading transaction...</Text>
+    <View style={styles.container}>
+      <Animated.Image
+        source={require('../../assets/logo.png')}
+        style={[styles.logo, { opacity, transform: [{ scale }] }]}
+        resizeMode="contain"
+      />
     </View>
   );
 };
@@ -16,19 +44,14 @@ const Loading = () => {
 export default Loading;
 
 const styles = StyleSheet.create({
- 
-  // Loading/Error States
-  loadingContainer: {
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-    minHeight: 300,
+    backgroundColor: '#fff',
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: '#6b7280',
+  logo: {
+    width: 200,
+    height: 200,
   },
-
 });

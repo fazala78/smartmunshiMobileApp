@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    KeyboardAvoidingView, ActivityIndicator, Animated, Platform, Image,
+    ActivityIndicator, Animated, Image, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -16,6 +16,7 @@ import { createProduct, fetchAllProducts } from '../services/ProductService';
 import SuccessModal, { SuccessResponse } from './modals/SuccessModal';
 import Header from '../components/ui/Header';
 import FooterError from '../components/common/FooterError';
+import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import { useSuccessSound } from '../utils/useSuccessSound';
 import { getLastProductsSyncTime, setLastProductsSyncTime } from '../services/storage';
 
@@ -56,8 +57,10 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     const [success, setSuccess] = useState<SuccessResponse | null>(null);
     const [showSuccess, setShowSuccess] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
+    const [anyDropdownOpen, setAnyDropdownOpen] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const scrollViewRef = useRef<ScrollView>(null);
     const { play } = useSuccessSound();
-
 
     const toastAnim = useRef(new Animated.Value(0)).current;
     let resetSwipe: (() => void) | null = null;
@@ -140,6 +143,12 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
+    const handleDropdownOpen = () => {
+        Keyboard.dismiss();
+        setAnyDropdownOpen(true);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
+    };
+
     const ThumbIcon = () =>
         loading
             ? <ActivityIndicator size="small" color={colors.backgroundDark} />
@@ -156,13 +165,26 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                 closeLabel="Add Another"
                 doneLabel="Done"
             />
+            <BarcodeScannerModal
+                visible={showScanner}
+                onClose={() => setShowScanner(false)}
+                onBarcodeScanned={(code) => {
+                    update({ barcode: code });
+                    setShowScanner(false);
+                }}
+            />
 
             {/* ── Header ── */}
             <Header title='New Product' navigation={navigation} />
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    ref={scrollViewRef}
+                    style={styles.body}
+                    contentContainerStyle={styles.bodyContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={anyDropdownOpen ? 'none' : 'on-drag'}
+                    automaticallyAdjustKeyboardInsets
+                    showsVerticalScrollIndicator={false}>
 
                     {/* Toast */}
                     {toast && (
@@ -228,7 +250,11 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                     label="Unit"
                                     leadingIconName="straighten"
                                     inputBg={colors.backgroundLight}
-                                    onSelect={(v) => update({ unit: v as unknown as unitsType })} value={null}                                />
+                                    onSelect={(v) => update({ unit: v as unknown as unitsType })}
+                                    onOpen={handleDropdownOpen}
+                                    onClose={() => setAnyDropdownOpen(false)}
+                                    value={null}
+                                />
                             </View>
                         </View>
                     </View>
@@ -261,15 +287,26 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                             />
                         </View>
                     </View>
-                     <InputField
-                            bg="white"
-                            label="SKU / Barcode"
-                            type="text"
-                            value={form.barcode}
-                            onChangeText={(v) => update({ barcode: v })}
-                            placeholder="Scan or enter SKU"
-                            icon="barcode-reader"
-                        />
+                    <View style={styles.barcodeRow}>
+                        <View style={styles.barcodeInput}>
+                            <InputField
+                                bg="white"
+                                label="SKU / Barcode"
+                                type="text"
+                                value={form.barcode}
+                                onChangeText={(v) => update({ barcode: v })}
+                                placeholder="Scan or enter SKU"
+                                icon="barcode-reader"
+                            />
+                        </View>
+                        <TouchableOpacity
+                            style={styles.scanBtn}
+                            onPress={() => setShowScanner(true)}
+                            activeOpacity={0.7}
+                        >
+                            <Icon name="qr-code-scanner" size={24} color={colors.white} />
+                        </TouchableOpacity>
+                    </View>
 
                     {/* ── Category & Tax (side by side) ── */}
                     <View style={styles.row}>
@@ -282,8 +319,11 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                 label="Category"
                                 leadingIconName="category"
                                 inputBg={colors.backgroundLight}
-                                // Append to existing array instead of replacing
-                                onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })} value={null}                            />
+                                onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })}
+                                onOpen={handleDropdownOpen}
+                                onClose={() => setAnyDropdownOpen(false)}
+                                value={null}
+                            />
                         </View>
                        
                     </View>
@@ -302,11 +342,12 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                         icon="description"
                         multiline
                         numberOfLines={3}
+                        onFocus={() =>
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
+                        }
                     />
 
-                   
-
-                    <View style={{ height: 32 }} />
+                    <View style={{ height: 25 }} />
                 </ScrollView>
 
                 {/* ── Footer ── */}
@@ -327,7 +368,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                         thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
                         thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
                         titleColor={colors.backgroundDark}
-                        titleFontSize={15}
+                        titleFontSize={13}
                         height={52}
                         swipeSuccessThreshold={70}
                         disabled={loading}
@@ -335,7 +376,6 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                         forceReset={(reset: () => void) => { resetSwipe = reset; }}
                     />
                 </View>
-            </KeyboardAvoidingView>
 
         </SafeAreaView>
     );
@@ -376,6 +416,14 @@ const styles = StyleSheet.create({
     // Side-by-side row
     row: { flexDirection: 'row', gap: 12 },
     rowItem: { flex: 1 },
+
+    // SKU / Barcode row
+    barcodeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    barcodeInput: { flex: 1 },
+    scanBtn: {
+        backgroundColor: colors.primary, width: 48, height: 48,
+        borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    },
 
     // Footer
     footer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.gray100 },

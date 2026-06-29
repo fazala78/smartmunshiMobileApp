@@ -283,7 +283,7 @@ const AssemblyScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.white },
     toggleRow: { backgroundColor: colors.white , paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.gray300 },
-    listContent: { paddingHorizontal: 16, paddingBottom: 16 },
+    listContent: { paddingHorizontal: 16, paddingBottom: 90 },
     inventoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 8 },
     inventoryTitle: { fontSize: 11, fontWeight: 'bold', letterSpacing: 1.5, color: colors.gray500 },
     itemCount: { fontSize: 11, fontWeight: 'bold', color: colors.gray500 },

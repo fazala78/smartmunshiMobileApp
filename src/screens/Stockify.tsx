@@ -198,6 +198,7 @@ export default function Stockify({ navigation }: Props) {
                         data={formData}
                         setFormData={setFormData}
                         step={stepId}
+                         productSearchType="live"
                     />
                 );
             case 2:

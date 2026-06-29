@@ -10,7 +10,6 @@ import {
     Animated,
     Alert,
     ActivityIndicator,
-    KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -178,7 +177,7 @@ export default function NextProcessScreen({ navigation }: Props) {
             };
 
             // NextProcess always posts to the same endpoint
-            
+
             const lot = await nextStep(payload);
 
             play();
@@ -208,6 +207,8 @@ export default function NextProcessScreen({ navigation }: Props) {
                         data={formData}
                         setFormData={setFormData}
                         step={stepId}
+                        productSearchType="none"
+
                     />
                 );
             case 2:
@@ -220,6 +221,8 @@ export default function NextProcessScreen({ navigation }: Props) {
                         data={formData}
                         setFormData={setFormData}
                         formDataAttribute="mixed_cart"
+                        itemSearchUrl='search-lot-products'
+                        creatable={false}
                     />
                 );
 
@@ -240,10 +243,7 @@ export default function NextProcessScreen({ navigation }: Props) {
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
+            <View style={styles.flex}>
                 <Header title="Next Stage" navigation={navigation} />
 
                 <View style={styles.dotsContainer}>
@@ -298,7 +298,7 @@ export default function NextProcessScreen({ navigation }: Props) {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
         </SafeAreaView>
     );
 }

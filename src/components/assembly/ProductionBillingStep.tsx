@@ -10,9 +10,10 @@ interface Step2Props {
     data: LotFormData;
     step: number;
     setFormData: React.Dispatch<React.SetStateAction<LotFormData>>;
+    productSearchType: 'live' | 'none';
 }
 
-export default function ProductionBillingStep({ data, step, setFormData }: Step2Props) {
+export default function ProductionBillingStep({ data, step, setFormData,productSearchType }: Step2Props) {
     const [isLoading, setIsLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -84,6 +85,8 @@ export default function ProductionBillingStep({ data, step, setFormData }: Step2
         <ScrollView
             contentContainerStyle={{ gap: 14, padding: 20 }}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            automaticallyAdjustKeyboardInsets
             showsVerticalScrollIndicator={false}
         >
             <Text style={styles.stepTitle}>Production Bill</Text>
@@ -97,9 +100,11 @@ export default function ProductionBillingStep({ data, step, setFormData }: Step2
                 attribute="cart"
                 creatable={true}
                 payload={data}
-                searchingType="live"
+                searchingType={productSearchType}
                 setPayload={setFormData}
                 listingTitle="MANUFACTURED ITEMS"
+                url={'products'}
+
             />
         </ScrollView>
     );

@@ -308,7 +308,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           ))}
         </View>
 
-        <View style={styles.bottomSpacer} />
+       
       </ScrollView>
 
       {/* ── Branch Modal ── */}
@@ -638,9 +638,6 @@ const styles = StyleSheet.create({
   },
   featuredActionSubtitle: { 
     color: colors.darkMuted 
-  },
-  bottomSpacer: { 
-    height: 32 
   },
 
   // Branch Modal

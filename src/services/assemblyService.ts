@@ -3,11 +3,22 @@ import api from './api';
 
 export const getProcesses = async (): Promise<Processes[]> => {
   try {
-    const response = await api.get<Processes[]>('/processes');
-    return response.data;
+    const response = await api.get<{ data: Processes[] }>('/processes');
+    return response.data.data;
   } catch (error: any) {
     throw (
       error.response?.data || { message: error.message || 'Failed to get user' }
+    );
+  }
+};
+
+export const createProcess = async (name: string): Promise<Processes> => {
+  try {
+    const response = await api.post<{ data: Processes }>('/processes', { name });
+    return response.data.data;
+  } catch (error: any) {
+    throw (
+      error.response?.data || { message: error.message || 'Failed to create process' }
     );
   }
 };

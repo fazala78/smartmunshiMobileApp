@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
     View, Text, ScrollView, StyleSheet,
-    KeyboardAvoidingView, ActivityIndicator, Platform,
+    ActivityIndicator,
     Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,6 +68,7 @@ const PayPaymentModal: React.FC<PayPaymentModalProps> = ({
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
     const { play } = useSuccessSound();
+    const scrollViewRef = useRef<ScrollView>(null);
 
     let resetSwipe: (() => void) | null = null;
 
@@ -172,59 +173,65 @@ const PayPaymentModal: React.FC<PayPaymentModalProps> = ({
                 onClose={onDismiss}
             />
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                    {/* ── Contact strip ── */}
-                    <View style={styles.contactStrip}>
-                        <ContactProfile
-                            avatar={contact.avatar}
-                            name={contact.name}
-                            type={contact.type}
-                        />
-                        <View style={styles.contactInfo}>
-                            <Text style={styles.contactName}>{contact.name}</Text>
-                            <Text style={styles.contactRole}>{contact.type}</Text>
-                        </View>
-                        <View style={styles.balanceDueBox}>
-                            <Text style={styles.balanceDueLabel}>Balance </Text>
-                            <Text style={[styles.balanceDueAmount, { color: balanceColor }]}>
-                                {formatBalance(contact.balance, contact.currency)}
-                            </Text>
-                        </View>
-                    </View>
-
-                    <PaymentMethods update={update} payload={payload} methods={METHODS} />
-
-                    <View style={{ height: 32 }} />
-                </ScrollView>
-
-                <View style={styles.footer}>
-                    {footerError ? (
-                        <FooterError
-                            setFooterError={setFooterError}
-                            footerError={footerError}
-                        />
-
-                    ) : null}
-                    <SwipeButton
-                        title={loading ? 'Processing...' : 'Slide to confirm'}
-                        thumbIconComponent={ThumbIcon}
-                        railBackgroundColor={colors.dangerLight}
-                        railBorderColor={colors.dangerLight}
-                        railFillBackgroundColor={colors.danger}
-                        thumbIconBackgroundColor={loading ? colors.gray400 : colors.danger}
-                        thumbIconBorderColor={loading ? colors.gray400 : colors.danger}
-                        titleColor={colors.dangerDark}
-                        titleFontSize={15}
-                        height={52}
-                        swipeSuccessThreshold={70}
-                        disabled={loading}
-                        onSwipeSuccess={checkOut}
-                        forceReset={(reset: () => void) => { resetSwipe = reset; }}
+            <ScrollView
+                ref={scrollViewRef}
+                style={styles.body}
+                contentContainerStyle={styles.bodyContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                automaticallyAdjustKeyboardInsets
+                showsVerticalScrollIndicator={false}>
+                {/* ── Contact strip ── */}
+                <View style={styles.contactStrip}>
+                    <ContactProfile
+                        avatar={contact.avatar}
+                        name={contact.name}
+                        type={contact.type}
                     />
+                    <View style={styles.contactInfo}>
+                        <Text style={styles.contactName}>{contact.name}</Text>
+                        <Text style={styles.contactRole}>{contact.type}</Text>
+                    </View>
+                    <View style={styles.balanceDueBox}>
+                        <Text style={styles.balanceDueLabel}>Balance </Text>
+                        <Text style={[styles.balanceDueAmount, { color: balanceColor }]}>
+                            {formatBalance(contact.balance, contact.currency)}
+                        </Text>
+                    </View>
                 </View>
-            </KeyboardAvoidingView>
+
+                <PaymentMethods update={update} payload={payload} methods={METHODS} onRemarksFocus={() =>
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
+                        }/>
+
+              
+            </ScrollView>
+
+            <View style={styles.footer}>
+                {footerError ? (
+                    <FooterError
+                        setFooterError={setFooterError}
+                        footerError={footerError}
+                    />
+
+                ) : null}
+                <SwipeButton
+                    title={loading ? 'Processing...' : 'Slide to confirm'}
+                    thumbIconComponent={ThumbIcon}
+                    railBackgroundColor={colors.dangerLight}
+                    railBorderColor={colors.dangerLight}
+                    railFillBackgroundColor={colors.danger}
+                    thumbIconBackgroundColor={loading ? colors.gray400 : colors.danger}
+                    thumbIconBorderColor={loading ? colors.gray400 : colors.danger}
+                    titleColor={colors.dangerDark}
+                    titleFontSize={15}
+                    height={52}
+                    swipeSuccessThreshold={70}
+                    disabled={loading}
+                    onSwipeSuccess={checkOut}
+                    forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                />
+            </View>
             <Modal
                 visible={receiptModalVisible}
                 transparent

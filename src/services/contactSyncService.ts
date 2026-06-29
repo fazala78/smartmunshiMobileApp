@@ -145,11 +145,9 @@ export async function checkContactsPermission(): Promise<boolean> {
       return false;
     }
   } else {
-    // iOS: try a lightweight read — if it throws, permission is denied
     try {
-      await Contacts.checkPermission();
       const permission = await Contacts.checkPermission();
-      return permission === 'authorized';
+      return permission === 'authorized' || permission === 'limited';
     } catch {
       return false;
     }
@@ -203,19 +201,17 @@ export async function requestContactsPermission(): Promise<boolean> {
   } else {
     try {
       const permission = await Contacts.requestPermission();
-      if (permission === 'authorized') return true;
+      if (permission === 'authorized' || permission === 'limited') return true;
 
       // iOS denied — open settings
-      if (permission === 'denied') {
-        Alert.alert(
-          'Permission Required',
-          'Please enable Contacts access in Settings to continue.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ],
-        );
-      }
+      Alert.alert(
+        'Permission Required',
+        "Smart Munshi requires access to your contacts to help you quickly add customers from your phone's contact list when creating a new contact. We also sync your contacts to our secure servers so you can send targeted marketing messages to your customers. When you create a marketing campaign, we'll display your synced contacts so you can easily select which customers to message. Your contacts are encrypted during upload and securely stored.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
+      );
       return false;
     } catch {
       return false;

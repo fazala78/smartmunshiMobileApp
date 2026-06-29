@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    KeyboardAvoidingView, ActivityIndicator, Animated, Platform,
-    Modal,
+    ActivityIndicator, Animated, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -10,9 +9,9 @@ import SwipeButton from 'rn-swipe-button';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
-import { ExpenseAccount, PaymentPayload } from '../types/payments';
+import { PaymentPayload } from '../types/payments';
 import PaymentMethods from '../components/PaymentMethods';
-import AsyncDropdown from '../components/AsyncDropdown';
+import ExpenseAccountPicker from '../components/ExpenseAccountPicker';
 import useCurrency from '../utils/currency';
 import { toDateString } from '../utils/stringUtils';
 import ExpenseReceipt from './modals/ExpenseReceipt';
@@ -21,7 +20,6 @@ import FooterError from '../components/common/FooterError';
 import { ExpenseSlip } from '../types/receipt';
 import { createExpense } from '../services/expensePaymentService';
 import { useSuccessSound } from '../utils/useSuccessSound';
-import { Account } from '../types/Inventory';
 
 type PaymentMethod = 'cash' | 'online' | 'credit';
 
@@ -60,6 +58,7 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
     const [createdSlip, setCreatedSlip] = useState<ExpenseSlip | null>(null);
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null); // replaces toast
+    const scrollViewRef = useRef<ScrollView>(null);
     const toastAnim = useRef(new Animated.Value(0)).current;
     const {play} = useSuccessSound();
     let resetSwipe: (() => void) | null = null;
@@ -84,8 +83,7 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
             errs.push('Please select a bank account.');
         if (payload.type === 'credit' && !payload.contact)
             errs.push('Please select the contact.');
-        if (!payload.remarks?.trim())
-            errs.push('Please enter the remarks.');
+       
         return errs;
     };
     const handleReceipt = (receipt: ExpenseSlip) => {
@@ -160,9 +158,14 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
 
             <Header title="Pay Expense" navigation={navigation} />
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    ref={scrollViewRef}
+                    style={styles.body}
+                    contentContainerStyle={styles.bodyContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    automaticallyAdjustKeyboardInsets
+                    showsVerticalScrollIndicator={false}>
 
                     {/* Toast */}
                     {toast && (
@@ -178,21 +181,20 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
                             </TouchableOpacity>
                         </Animated.View>
                     )}
-                    {/* Contact */}
-                    <AsyncDropdown
-                        url="/expense-account"
-                        searchParam="q"
-                        minSearchLength={2}
-                        creatable={false}
-                        value={payload?.expense as Account}
-                        label="Select Expense"
-                        leadingIconName="tag"
-                        inputBg={colors.backgroundLight}
-                        onSelect={(v) => update({ expense: v as unknown as ExpenseAccount })}
+                    <ExpenseAccountPicker
+                        value={payload.expense}
+                        onSelect={(v) => update({ expense: v })}
                     />
-                    <PaymentMethods update={update} payload={payload} methods={METHODS} />
+                    <PaymentMethods
+                        update={update}
+                        payload={payload}
+                        methods={METHODS}
+                        onRemarksFocus={() =>
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
+                        }
+                    />
 
-                    <View style={{ height: 32 }} />
+                   
                 </ScrollView>
 
                 <View style={styles.footer}>
@@ -220,7 +222,6 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
                         forceReset={(reset: () => void) => { resetSwipe = reset; }}
                     />
                 </View>
-            </KeyboardAvoidingView>
             <Modal
                 visible={receiptModalVisible}
                 transparent

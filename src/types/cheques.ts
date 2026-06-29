@@ -18,6 +18,10 @@ export interface Cheque {
   clearing_date: string;
   date: string;
   currency: Currency;
+  /** Present for partial / installment cheques — remaining unpaid amount. */
+  balance?: number;
+  /** Present for partial / installment cheques — each entry is one installment. */
+  transactions?: InstallmentTransaction[];
 }
 
 export interface InstallmentTransaction {
@@ -40,6 +44,11 @@ export interface InstallmentData {
   currency: { symbol: string };
   transactions: InstallmentTransaction[];
 }
+export interface ChequeStatusSummary {
+  total_amount: string;
+  quantity: number;
+}
+
 export type ChequeStatus =
   | 'unsettled'
   | 'partial'

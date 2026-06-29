@@ -15,6 +15,7 @@ import {
     ActivityIndicator,
     ViewStyle,
     ScrollView,
+    Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../services/api';
@@ -54,6 +55,8 @@ export interface CreatePayload {
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface AsyncDropdownProps<T extends BaseRecord> {
     onSelect: (record: T | null) => void;
+    onOpen?:           () => void;
+    onClose?:          () => void;
 
     creatable?:        boolean;
     onCreate?:         (payload: CreatePayload) => void;
@@ -85,6 +88,8 @@ export interface AsyncDropdownProps<T extends BaseRecord> {
 function AsyncDropdownInner<T extends BaseRecord>(
     {
         onSelect,
+        onOpen,
+        onClose,
         creatable       = false,
         onCreate,
         createLabel     = 'Create',
@@ -127,6 +132,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
     const abortControllerRef  = useRef<AbortController | null>(null);
     const isMounted           = useRef<boolean>(true);
     const isCreatingRef       = useRef<boolean>(false);  // true while create row tap is in flight
+    const willKeepOpenRef    = useRef<boolean>(false);  // true when onOpen-triggered dismiss should not close dropdown
 
     // Keep refs in sync with latest values on every render
     labelResolverRef.current    = labelResolver;
@@ -247,6 +253,9 @@ function AsyncDropdownInner<T extends BaseRecord>(
         }
 
         setOpen(true);
+        // Guard against the blur that fires when onOpen calls Keyboard.dismiss()
+        willKeepOpenRef.current = true;
+        onOpen?.();
 
         // Auto-fetch only when the list is empty AND the input is also empty.
         // If the user already typed something, keep their search text + results.
@@ -277,6 +286,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
         setOpen(false);
         inputRef.current?.blur();
         onSelect(item._raw);
+        onClose?.();
     };
 
     const handleClear = (): void => {
@@ -286,6 +296,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
         inputRef.current?.blur();
         fetchRecords('', false);
         onSelect(null);
+        onClose?.();
     };
 
     const handleCreate = (): void => {
@@ -305,6 +316,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
 
         onSelect(newRecord);
         onCreate?.({ name });
+        onClose?.();
     };
 
     const handleBlur = (): void => {
@@ -315,7 +327,14 @@ function AsyncDropdownInner<T extends BaseRecord>(
             // handleCreate reads inputTextRef and tidies up state itself.
             if (isCreatingRef.current) return;
 
+            // onOpen triggered a Keyboard.dismiss() which caused this blur — keep dropdown open
+            if (willKeepOpenRef.current) {
+                willKeepOpenRef.current = false;
+                return;
+            }
+
             setOpen(false);
+            onClose?.();
 
             // Only wipe the search text when nothing has been selected.
             if (!selectedRef.current) {

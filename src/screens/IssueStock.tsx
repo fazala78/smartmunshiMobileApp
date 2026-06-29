@@ -196,6 +196,7 @@ export default function IssueStock({ navigation }: Props) {
                         data={formData}
                         setFormData={setFormData}
                         formDataAttribute="mixed_cart"
+                        itemSearchUrl="search-lot-products"
                     />
                 );
 

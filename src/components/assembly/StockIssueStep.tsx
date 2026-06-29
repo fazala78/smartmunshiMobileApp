@@ -9,25 +9,30 @@ interface Step2Props {
   data: LotFormData;
   setFormData: React.Dispatch<React.SetStateAction<LotFormData>>;
   formDataAttribute:'cart' | 'mixed_cart';
+  itemSearchUrl: string;
+  creatable?: boolean;
 }
-export default function StockIssueStep({ data, setFormData,formDataAttribute }: Step2Props) {
+export default function StockIssueStep({ data, setFormData,formDataAttribute,itemSearchUrl,creatable }: Step2Props) {
 
   return (
     <ScrollView
       contentContainerStyle={{ gap: 14, padding: 20 }}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.stepTitle}>Issue Stock </Text>
 
       <Shopping
         attribute={formDataAttribute}
-        creatable={false}
+        creatable={creatable}
         payload={data as LotFormData}
         searchingType="live"
         showPrice='no'
         setPayload={setFormData}
         listingTitle="ISSUED STOCK"
+        url={itemSearchUrl}
       />
     </ScrollView>
   );

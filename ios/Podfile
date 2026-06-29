@@ -1,5 +1,5 @@
 ENV['RCT_NEW_ARCH_ENABLED'] = '1'
-# Resolve react_native_pods.rb with node to allow for hoisting
+
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
     "react-native/scripts/react_native_pods.rb",
@@ -18,25 +18,56 @@ end
 target 'SmartMunshiMobile' do
   config = use_native_modules!
 
-
- use_react_native!(
-  :path => config[:reactNativePath],
-  :new_arch_enabled => false,
-  :hermes_enabled => true 
-)
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :new_arch_enabled => false
+  )
 
   post_install do |installer|
-    # Fix non-modular-include-in-framework-module errors
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-      end
-    end
-
+    # 1. Run the native React Native post-install script FIRST.
+    # This prevents React Native from overwriting our custom dSYM logic below.
     react_native_post_install(
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false,
     )
+
+    # 2. Apply your custom configurations SAFELY after the React Native run.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Fix non-modular includes
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+
+        # VisionCamera needs iOS 13+
+        if target.name == 'VisionCamera'
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        end
+
+        # Force C++20 to fix Hermes/JSI compilation errors with Xcode SDK
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+        config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+        
+        # Add missing headers definition
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = [
+          '$(inherited)',
+          '-DFOLLY_NO_CONFIG',
+          '-DFOLLY_MOBILE=1',
+          '-DFOLLY_USE_LIBCPP=1',
+          '-DFOLLY_CFG_NO_COROUTINES=1',
+          '-DFOLLY_HAVE_CLOCK_GETTIME=1'
+        ]
+
+        # Force dSYM generation across all compiled cocoapods targets
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+      end
+
+      # 3. Explicitly target the Hermes engine frameworks so symbols aren't stripped on bundle
+      if target.name == 'hermes-engine' || target.name == 'React-hermes' || target.name == 'hermesvm'
+        target.build_configurations.each do |config|
+          config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+          config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+        end
+      end
+    end
   end
 end

@@ -1,43 +1,42 @@
-import { Cheque, InstallmentData } from '../types/cheques';
+import { Cheque, ChequeStatusSummary, InstallmentData } from '../types/cheques';
 import { toDateString } from '../utils/stringUtils';
 import api from './api';
+
+/** Builds the shared `cheques-list` / `cheque-status` query params from the screen filters. */
+const buildChequeFilterParams = (filters?: any): Record<string, any> => {
+  const params: Record<string, any> = {};
+
+  if (filters?.date) {
+    params.date = filters.date;
+  }
+
+  if (filters?.searchQuery) {
+    params.query = filters.searchQuery;
+  }
+
+  if (filters?.status) {
+    params.status = filters.status;
+  }
+
+  if (filters?.accounts && filters.accounts.length > 0) {
+    params.accounts = filters.accounts.join(',');
+  }
+
+  if (filters?.contacts && filters.contacts.length > 0) {
+    params.contacts = filters.contacts.join(',');
+  }
+
+  if (filters?.clearing_date) {
+    params.clearing_date = toDateString(filters.clearing_date);
+  }
+
+  return params;
+};
+
 export const getCheques = async (filters?: any): Promise<Cheque[]> => {
   try {
-    // Build query parameters from filters
-    const params: any = {};
-
-    if (filters?.date) {
-      params.date = filters.date;
-    }
-
-    if (filters?.searchQuery) {
-      params.query = filters.searchQuery;
-    }
-
-    if (filters?.status) {
-      params.status = filters.status;
-      // Or if your API expects an array:
-      // params.transaction_types = filters.transactionTypes;
-    }
-
-    if (filters?.accounts && filters.accounts.length > 0) {
-      params.accounts = filters.accounts.join(',');
-      // Or if your API expects an array:
-      // params.debit_accounts = filters.debitAccounts;
-    }
-
-    if (filters?.contacts && filters.contacts.length > 0) {
-      params.contacts = filters.contacts.join(',');
-      // Or if your API expects an array:
-      // params.credit_accounts = filters.creditAccounts;
-    }
-
-    if (filters?.clearing_date) {
-      params.clearing_date = toDateString(filters.clearing_date);
-      // Or if your API expects an array:
-      // params.credit_accounts = filters.creditAccounts;
-    }
-    params.page = filters.page ?? 1;
+    const params = buildChequeFilterParams(filters);
+    params.page = filters?.page ?? 1;
     const response = await api.get<any>('/cheques-list', {
       params,
     });
@@ -46,6 +45,23 @@ export const getCheques = async (filters?: any): Promise<Cheque[]> => {
     throw (
       error.response?.data || {
         message: error.message || 'Failed to get journals',
+      }
+    );
+  }
+};
+
+export const getChequeStatus = async (
+  filters?: any,
+): Promise<ChequeStatusSummary> => {
+  try {
+    const response = await api.get<ChequeStatusSummary>('/cheque-status', {
+      params: buildChequeFilterParams(filters),
+    });
+    return response.data;
+  } catch (error: any) {
+    throw (
+      error.response?.data || {
+        message: error.message || 'Failed to get cheque status',
       }
     );
   }
@@ -71,11 +87,13 @@ export const getChequeInstallments = async (
 export const updateCheque = async (
   cheque: any,
   action: string,
+  date?: string,
 ): Promise<any> => {
   try {
     const response = await api.post('/update-cheque', {
       cheque_id: cheque.id,
       action,
+      date,
     });
     return response.data;
   } catch (error: any) {
@@ -88,12 +106,14 @@ export const recordInstallment = async (
   cheque: any,
   amount: number,
   account_id: number | undefined,
+  date?: string,
 ): Promise<any> => {
   try {
     const response = await api.post('/store-installment', {
       cheque_id: cheque.id,
       amount,
       account_id,
+      date,
     });
     return response.data;
   } catch (error: any) {

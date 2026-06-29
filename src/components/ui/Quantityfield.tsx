@@ -26,6 +26,7 @@ interface QuantityFieldProps {
   onChange: (qty: number) => void;
   min?: number;
   step?: number;
+  label?: string;
 }
 
 const QuantityField: React.FC<QuantityFieldProps> = ({
@@ -33,6 +34,7 @@ const QuantityField: React.FC<QuantityFieldProps> = ({
   onChange,
   min  = 1,
   step = 1,
+  label = 'Quantity',
 }) => {
   // ── Local string buffer ──────────────────────────────────────────────────
   const [raw, setRaw] = useState(String(value ?? min));
@@ -81,7 +83,7 @@ const QuantityField: React.FC<QuantityFieldProps> = ({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>Quantity</Text>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.quantityRow}>
         <TouchableOpacity style={styles.qtyBtnLeft} onPress={decrement} activeOpacity={0.8}>
           <Icon name="remove" size={20} color={colors.white} />

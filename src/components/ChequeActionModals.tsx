@@ -8,6 +8,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
 import { colors } from '../theme';
 import AsyncDropdown from './AsyncDropdown';
+import DatePickerField from './DatePickerField';
 import { Account } from '../types/payments';
 import { getChequeInstallments } from '../services/cheques';
 import { Cheque } from '../types/cheques';
@@ -18,7 +19,7 @@ interface InstallmentDialogProps {
     visible: boolean;
     cheque: Cheque | null;
     loading: boolean;
-    onConfirm: (amount: string, account: Account | undefined) => void;
+    onConfirm: (amount: string, account: Account | undefined, date: Date | null) => void;
     onCancel: () => void;
 }
 
@@ -30,8 +31,9 @@ interface ConfirmDialogProps {
     confirmLabel: string;
     confirmColor: string;
     icon: string;
+    dateLabel?: string;
     loading: boolean;
-    onConfirm: () => void;
+    onConfirm: (date: Date | null) => void;
     onCancel: () => void;
 }
 
@@ -40,50 +42,68 @@ interface ConfirmDialogProps {
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     visible, cheque, title, message, confirmLabel, confirmColor,
-    icon, loading, onConfirm, onCancel,
-}) => (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-        <View style={styles.overlay}>
-            <View style={styles.card}>
-                <View style={[styles.iconWrap, { backgroundColor: confirmColor + '18' }]}>
-                    <Icon name={icon} size={32} color={confirmColor} />
-                </View>
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.message}>{message}</Text>
-                {cheque && (
-                    <View style={styles.chequePill}>
-                        <Icon name="description" size={14} color={colors.textSecondary} />
-                        <Text style={styles.chequePillText}>{cheque.cheque_number}</Text>
-                        <Text style={[styles.chequePillAmount, { color: confirmColor }]}>
-                            {cheque.amount}
-                        </Text>
+    icon, dateLabel, loading, onConfirm, onCancel,
+}) => {
+    const [date, setDate] = useState<Date | null>(new Date());
+
+    // Reset to today whenever the dialog is (re)opened
+    useEffect(() => {
+        if (visible) setDate(new Date());
+    }, [visible]);
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+            <View style={styles.overlay}>
+                <View style={styles.card}>
+                    <View style={[styles.iconWrap, { backgroundColor: confirmColor + '18' }]}>
+                        <Icon name={icon} size={32} color={confirmColor} />
                     </View>
-                )}
-                <View style={styles.actions}>
-                    <TouchableOpacity
-                        style={styles.btnCancel}
-                        onPress={onCancel}
-                        activeOpacity={0.8}
-                        disabled={loading}
-                    >
-                        <Text style={styles.btnCancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.btnConfirm, { backgroundColor: confirmColor }, loading && styles.btnDisabled]}
-                        onPress={onConfirm}
-                        activeOpacity={0.8}
-                        disabled={loading}
-                    >
-                        {loading
-                            ? <ActivityIndicator size="small" color={colors.white} />
-                            : <Text style={styles.btnConfirmText}>{confirmLabel}</Text>
-                        }
-                    </TouchableOpacity>
+                    <Text style={styles.title}>{title}</Text>
+                    <Text style={styles.message}>{message}</Text>
+                    {cheque && (
+                        <View style={styles.chequePill}>
+                            <Icon name="description" size={14} color={colors.textSecondary} />
+                            <Text style={styles.chequePillText}>{cheque.cheque_number}</Text>
+                            <Text style={[styles.chequePillAmount, { color: confirmColor }]}>
+                                {cheque.amount}
+                            </Text>
+                        </View>
+                    )}
+                    <View style={styles.dateField}>
+                        <DatePickerField
+                            label={dateLabel ?? 'Date'}
+                            value={date}
+                            onChange={setDate}
+                            placeholder="Select date"
+                            inputBg={colors.backgroundLight}
+                        />
+                    </View>
+                    <View style={styles.actions}>
+                        <TouchableOpacity
+                            style={styles.btnCancel}
+                            onPress={onCancel}
+                            activeOpacity={0.8}
+                            disabled={loading}
+                        >
+                            <Text style={styles.btnCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.btnConfirm, { backgroundColor: confirmColor }, loading && styles.btnDisabled]}
+                            onPress={() => onConfirm(date)}
+                            activeOpacity={0.8}
+                            disabled={loading}
+                        >
+                            {loading
+                                ? <ActivityIndicator size="small" color={colors.white} />
+                                : <Text style={styles.btnConfirmText}>{confirmLabel}</Text>
+                            }
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
-        </View>
-    </Modal>
-);
+        </Modal>
+    );
+};
 
 // ─── Installment Dialog ───────────────────────────────────────────────────────
 
@@ -92,6 +112,7 @@ export const InstallmentDialog: React.FC<InstallmentDialogProps> = ({
 }) => {
     const [amount,  setAmount]  = useState('');
     const [account, setAccount] = useState<Account | null>(null);
+    const [date,    setDate]    = useState<Date | null>(new Date());
     const [error,   setError]   = useState('');
 
     // ── Fetch installment details ─────────────────────────────────────────────
@@ -113,6 +134,7 @@ export const InstallmentDialog: React.FC<InstallmentDialogProps> = ({
         if (!visible) {
             setAmount('');
             setAccount(null);
+            setDate(new Date());
             setError('');
         }
     }, [visible]);
@@ -127,12 +149,13 @@ export const InstallmentDialog: React.FC<InstallmentDialogProps> = ({
             return;
         }
         setError('');
-        onConfirm(amount, account ?? undefined);
+        onConfirm(amount, account ?? undefined, date);
     };
 
     const handleCancel = () => {
         setAmount('');
         setAccount(null);
+        setDate(new Date());
         setError('');
         onCancel();
     };
@@ -258,6 +281,17 @@ export const InstallmentDialog: React.FC<InstallmentDialogProps> = ({
                                 </View>
                             </View>
 
+                            {/* ── Date ── */}
+                            <View style={styles.fieldGroup}>
+                                <DatePickerField
+                                    label="Installment Date"
+                                    value={date}
+                                    onChange={setDate}
+                                    placeholder="Select date"
+                                    inputBg={colors.backgroundLight}
+                                />
+                            </View>
+
                             {/* ── Account dropdown ── */}
                             <View style={styles.fieldGroup}>
                                 <AsyncDropdown
@@ -346,6 +380,9 @@ const styles = StyleSheet.create({
     chequePill:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.backgroundLight, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 14 },
     chequePillText:   { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
     chequePillAmount: { fontSize: 13, fontWeight: '800' },
+
+    // Date field (ConfirmDialog)
+    dateField:        { width: '100%', marginBottom: 14 },
 
     // Scroll area — fills available space between the pill and the buttons
     scrollArea:    { width: '100%', flexGrow: 0 },

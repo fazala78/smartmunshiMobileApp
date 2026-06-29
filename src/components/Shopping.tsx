@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, SetStateAction, Dispatch } from 're
 import {
   View,
   Text,
+  TextInput,
+  TouchableOpacity,
   StyleSheet,
   ToastAndroid,
   Platform,
@@ -37,6 +39,7 @@ type ShoppingProps<T extends Inventory | LotFormData | StockTransferPayload> = {
   searchingType?: string;
   listingTitle?: string;
   showPrice?: string;
+  url?: string;
 }
 
 // ─── Helper — read the correct array from payload ────────────────────────────
@@ -54,15 +57,18 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
   listingTitle,
   searchingType,
   showPrice,
-  creatable
+  creatable,
+  url
 }: ShoppingProps<T>) {
 
   const productDropdownRef = useRef<any>(null);
+  const newProductInputRef = useRef<TextInput>(null);
 
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Cart | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [barcodeScannerVisible, setBarcodeScannerVisible] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
   const configuration = useConfiguration();
 
 
@@ -86,6 +92,25 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
     });
     setEditingIndex(null);
     setAddItemModalVisible(true);
+  };
+
+  // ── Add a product typed by hand (searchingType="none") ────────────────────
+  const handleAddTypedProduct = () => {
+    const trimmed = newProductName.trim();
+    if (!trimmed) return;
+
+    handleProductSelect({
+      name: trimmed,
+      label: trimmed,
+      value: trimmed,
+      price: 0,
+      quantity: 1,
+      sku: null,
+      _isNew: true,
+    } as unknown as Cart);
+
+    setNewProductName('');
+    newProductInputRef.current?.blur();
   };
 
   // ── Open modal to EDIT an existing item ───────────────────────────────────
@@ -139,7 +164,10 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
   setAddItemModalVisible(false);
   setPendingProduct(null);
   setEditingIndex(null);
-  if (editingIndex === null) productDropdownRef.current?.reset();
+  if (editingIndex === null) {
+    productDropdownRef.current?.reset();
+    newProductInputRef.current?.blur();
+  }
 };
 
 
@@ -174,7 +202,10 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
     setAddItemModalVisible(false);
     setPendingProduct(null);
     setEditingIndex(null);
-    if (editingIndex === null) productDropdownRef.current?.reset();
+    if (editingIndex === null) {
+      productDropdownRef.current?.reset();
+      newProductInputRef.current?.blur();
+    }
   };
 
   // ── Remove item ───────────────────────────────────────────────────────────
@@ -230,18 +261,38 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
     <>
       {/* Product search */}
       <View style={{ zIndex: 2000 }}>
-        {searchingType ? (
+        {searchingType === 'live' ? (
           <ProductDropdown
             ref={productDropdownRef}
-            url="/products"
+            url={url || "products"}
             creatable={creatable}
             createLabel="Create"
             minSearchLength={3}
-            searchParam="term"
+            searchParam="q"
             autoReset
             showBarcodeBtn
             onSelect={handleProductSelect}
           />
+        ) : searchingType === 'none' ? (
+          <View style={styles.inlineAddRow}>
+            <TextInput
+              ref={newProductInputRef}
+              style={styles.inlineAddInput}
+              value={newProductName}
+              onChangeText={setNewProductName}
+              placeholder="Type product name..."
+              placeholderTextColor={colors.gray400}
+              returnKeyType="done"
+              onSubmitEditing={handleAddTypedProduct}
+            />
+            <TouchableOpacity
+              style={styles.inlineAddBtn}
+              onPress={handleAddTypedProduct}
+              activeOpacity={0.7}
+            >
+              <Icon name="add" size={22} color={colors.white} />
+            </TouchableOpacity>
+          </View>
         ) : (
           <LocalProductDropDown
             label="Add Items"
@@ -310,6 +361,30 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  inlineAddRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inlineAddInput: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.gray200,
+    backgroundColor: colors.backgroundLight,
+    color: colors.gray900,
+  },
+  inlineAddBtn: {
+    backgroundColor: colors.primary,
+    padding: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 48,
+    width: 48,
+  },
   orderTitle: {
     fontSize: 11,
     fontWeight: '700',

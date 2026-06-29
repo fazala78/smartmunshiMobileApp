@@ -18,6 +18,8 @@ export default function PurchaseDetailStep({ data, setFormData }: Step3Props) {
     <ScrollView
       contentContainerStyle={{ gap: 14, padding: 20 }}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.stepTitle}>Date & Shipping{'\n'} Detail</Text>

@@ -2,18 +2,19 @@ import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SwipeRow } from 'react-native-swipe-list-view';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
-import useCurrency from '../utils/currency';
+import useCurrency, { formatBalance } from '../utils/currency';
+import { toDateString } from '../utils/stringUtils';
 import Filter from '../components/Filter';
 import Header from '../components/ui/Header';
 import FilterModal from '../components/FilterModal';
 import ApiDropdown from '../components/ui/ApiDropdown';
 import DatePickerField from '../components/DatePickerField';
 import { Cheque, chequeQueryParams, ChequeStatus } from '../types/cheques';
-import { getCheques, recordInstallment, updateCheque } from '../services/cheques';
+import { getCheques, getChequeStatus, recordInstallment, updateCheque } from '../services/cheques';
 import Error from '../components/common/Error';
 import Loading from '../components/common/Loading';
 import Empty from '../components/common/Empty';
@@ -48,12 +49,12 @@ interface DialogState {
 
 const DIALOG_META: Record<NonNullable<DialogType>, {
     title: string; message: string; confirmLabel: string;
-    confirmColor: string; icon: string;
+    confirmColor: string; icon: string; dateLabel: string;
 }> = {
-    settled: { title: 'Clear Cheque', message: 'Are you sure you want to mark this cheque as cleared? This action cannot be undone.', confirmLabel: 'Clear', confirmColor: colors.primary, icon: 'check-circle' },
-    bounced: { title: 'Bounce Cheque', message: 'Mark this cheque as bounced? The contact will be notified and the amount will be reversed.', confirmLabel: 'Bounce', confirmColor: colors.danger, icon: 'cancel' },
-    return: { title: 'Return Cheque', message: 'Return this cheque to the contact? The transaction will be reversed.', confirmLabel: 'Return', confirmColor: colors.info, icon: 'undo' },
-    swap: { title: 'Exchange to Cash', message: 'Exchange this cheque for cash? This will settle the cheque immediately.', confirmLabel: 'Exchange', confirmColor: colors.info, icon: 'refresh' },
+    settled: { title: 'Clear Cheque', message: 'Are you sure you want to mark this cheque as cleared? This action cannot be undone.', confirmLabel: 'Clear', confirmColor: colors.primary, icon: 'check-circle', dateLabel: 'Clearing Date' },
+    bounced: { title: 'Bounce Cheque', message: 'Mark this cheque as bounced? The contact will be notified and the amount will be reversed.', confirmLabel: 'Bounce', confirmColor: colors.danger, icon: 'cancel', dateLabel: 'Bounce Date' },
+    return: { title: 'Return Cheque', message: 'Return this cheque to the contact? The transaction will be reversed.', confirmLabel: 'Return', confirmColor: colors.info, icon: 'undo', dateLabel: 'Return Date' },
+    swap: { title: 'Exchange to Cash', message: 'Exchange this cheque for cash? This will settle the cheque immediately.', confirmLabel: 'Exchange', confirmColor: colors.info, icon: 'refresh', dateLabel: 'Exchange Date' },
 };
 
 // ─── Action definitions per status ───────────────────────────────────────────
@@ -171,6 +172,13 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
 
     const cheques: Cheque[] = data?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
 
+    // ── Status summary (total amount + count for the active filters) ─────────
+    const { data: chequeStatus } = useQuery({
+        queryKey: ['cheque-status', filters],
+        queryFn: () => getChequeStatus(filters),
+        staleTime: 30_000,
+    });
+
     // ── Pagination ────────────────────────────────────────────────────────────
     const handleEndReached = useCallback(() => {
         if (!hasNextPage || isFetchingNextPage) return;
@@ -186,11 +194,11 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
 
     const closeConfirm = useCallback(() => setDialog({ type: null, cheque: null }), []);
 
-    const handleConfirmAction = useCallback(async () => {
+    const handleConfirmAction = useCallback(async (date: Date | null) => {
         if (!dialog.cheque || !dialog.type) return;
         try {
             setActionLoading(true);
-            await updateCheque(dialog.cheque, dialog.type);
+            await updateCheque(dialog.cheque, dialog.type, date ? toDateString(date) : undefined);
             await refetch();
             closeConfirm();
         } catch (error: any) {
@@ -201,11 +209,11 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dialog]);
 
-    const handleInstallmentConfirm = useCallback(async (amount: string, account: Account | undefined) => {
+    const handleInstallmentConfirm = useCallback(async (amount: string, account: Account | undefined, date: Date | null) => {
         if (!installmentCheque) return;
         try {
             setActionLoading(true);
-            await recordInstallment(installmentCheque, parseFloat(amount), account?.id);
+            await recordInstallment(installmentCheque, parseFloat(amount), account?.id, date ? toDateString(date) : undefined);
             await refetch();
             setShowInstallment(false);
             setInstallmentCheque(null);
@@ -332,9 +340,14 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.listHeaderRow}>
                 <Text style={styles.listHeaderText}>Cheque Results</Text>
-                {cheques.length > 0 && (
-                    <View style={styles.countBadge}>
-                        <Text style={styles.countText}>{cheques.length}</Text>
+                {chequeStatus && (
+                    <View style={styles.statusSummary}>
+                        <Text style={styles.statusAmount}>
+                            {formatBalance(parseFloat(chequeStatus.total_amount), currency ?? undefined)}
+                        </Text>
+                        <View style={styles.countBadge}>
+                            <Text style={styles.countText}>{chequeStatus.quantity}</Text>
+                        </View>
                     </View>
                 )}
             </View>
@@ -371,6 +384,7 @@ const ChequeListScreen: React.FC<Props> = ({ navigation }) => {
                     <ApiDropdown
                         label="Contact"
                         url="/contacts"
+                        searchParam = 'search'
                         value={draftFilters.contacts}
                         multiple
                         zIndex={2000}
@@ -413,6 +427,8 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.white },
     listHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
     listHeaderText: { fontSize: 11, fontWeight: '800', color: '#61896f', letterSpacing: 2, textTransform: 'uppercase' },
+    statusSummary: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    statusAmount: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
     countBadge: { backgroundColor: colors.primaryMuted, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
     countText: { fontSize: 11, fontWeight: '800', color: colors.primary },
     flatList: { flex: 1 },

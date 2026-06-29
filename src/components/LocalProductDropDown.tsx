@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import {
   View, Text, TextInput, Image, StyleSheet,
-  TouchableOpacity, ViewStyle, ScrollView,
+  TouchableOpacity, ViewStyle, ScrollView, Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography } from '../theme';
@@ -122,6 +122,7 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
     const handleFocus = (): void => {
       if (disabled) return;
       setOpen(true);
+      loadProducts(inputText);
     };
 
     const handleChangeText = (text: string): void => {
@@ -133,18 +134,18 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
     };
 
     const handleSelect = (item: ProductItem<any>): void => {
+      Keyboard.dismiss();
       onSelect(item._raw);
       if (autoReset) {
         setTimeout(() => handleReset(), 50);
       } else {
         setOpen(false);
-        inputRef.current?.blur();
       }
     };
 
     const handleReset = (): void => {
       setInputText('');
-      setItems([]);
+      loadProducts('');
       setOpen(false);
       inputRef.current?.blur();
     };

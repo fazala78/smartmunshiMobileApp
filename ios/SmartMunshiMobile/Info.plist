@@ -34,9 +34,12 @@
 		<true/>
 	</dict>
 	<key>NSContactsUsageDescription</key>
-	<string>We need access to sync your contacts.</string>
+	<string>SmartMunshi requires access to your contacts to help you quickly add customers from your phone's contact list when creating a new contact. We also sync your contacts to our secure servers so you can send targeted marketing messages to your customers. When you create a marketing campaign, we'll display your synced contacts so you can easily select which customers to message. Your contacts are encrypted during upload and securely stored.
+</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>Smart Munshi requires location access to automatically verify the location where business expenses or transactions are logged.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Smart Munshi requires access to your photo library to let you upload and attach receipt images and document attachments.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
