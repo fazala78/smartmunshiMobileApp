@@ -23,6 +23,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import ModalHeader from '../../components/ModalHeader';
 import { iosSharePDF } from '../../services/iosShareService';
+import { ReceiptType } from '../../services/printSettings';
+import { useBluetoothReceiptPrint } from '../../hooks/useBluetoothReceiptPrint';
+import BluetoothDevicePicker from '../../components/BluetoothDevicePicker';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,21 +96,33 @@ const TransactionSlip: React.FC<InvoiceProps> = ({ visible, onClose, transaction
     enabled: visible && hasHtmlRoute,
   });
 
+  const documentType: ReceiptType | undefined = htmlRoute?.includes('purchase')
+    ? 'purchase'
+    : htmlRoute?.includes('invoice') || htmlRoute?.includes('sale')
+    ? 'invoice'
+    : undefined;
+
   const handlePrint = async () => {
          if (!htmlData) return;
           if (Platform.OS === 'android') {
-             await sharePDF(htmlData, data?.title + ' ' + data?.invoice_number);
+             await sharePDF(htmlData, data?.title + ' ' + data?.invoice_number, documentType);
           }else{
-              await iosSharePDF(htmlData, data?.title + ' ' + data?.invoice_number);
+              await iosSharePDF(htmlData, data?.title + ' ' + data?.invoice_number, documentType);
           }
        };
 
+  const { pickerVisible, isPrinting, print: printToPrinter, handleDeviceSelected, closePicker } = useBluetoothReceiptPrint();
 
+  const handleSystemPrint = async () => {
+    if (!htmlData) return;
+    await printToPrinter(htmlData, data?.title + ' ' + data?.invoice_number, documentType);
+  };
 
   // ─── Render ────────────────────────────────────────────────────────────────
   if (!visible) return null;
 
   return (
+    <>
     <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
       <TouchableOpacity style={styles.overlayTouchable} activeOpacity={1} onPress={onClose} />
 
@@ -133,6 +148,8 @@ const TransactionSlip: React.FC<InvoiceProps> = ({ visible, onClose, transaction
               title={data.title + '#' + data.invoice_number}
               onClose={onClose}
               onShare={handlePrint}
+              onPrint={Platform.OS === 'android' ? handleSystemPrint : undefined}
+              printing={isPrinting}
             />
             {/* Info */}
             <View style={styles.infoSection}>
@@ -229,6 +246,8 @@ const TransactionSlip: React.FC<InvoiceProps> = ({ visible, onClose, transaction
         )}
       </Animated.View>
     </Animated.View>
+    <BluetoothDevicePicker visible={pickerVisible} onSelect={handleDeviceSelected} onClose={closePicker} />
+    </>
   );
 };
 

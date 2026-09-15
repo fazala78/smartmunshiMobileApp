@@ -56,4 +56,5 @@ export type RootStackParamList = {
   AccountLedger: {
     account: BankAccount;
   };
+  PrintSettings: undefined;
 };

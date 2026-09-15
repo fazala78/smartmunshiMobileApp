@@ -22,6 +22,8 @@ import { fetchBankPaymentHtml, getBankReceipt } from '../../services/bankPayment
 import { sharePDF } from '../../services/shareService';
 import { Currency } from '../../types/contact';
 import { iosSharePDF } from '../../services/iosShareService';
+import { useBluetoothReceiptPrint } from '../../hooks/useBluetoothReceiptPrint';
+import BluetoothDevicePicker from '../../components/BluetoothDevicePicker';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -110,6 +112,8 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
   const showLoader = hasRoute && isLoading;
   const showError = hasRoute && isError;
 
+  const { pickerVisible, isPrinting, print: printToPrinter, handleDeviceSelected, closePicker } = useBluetoothReceiptPrint();
+
   if (!visible) {
     return null;
   }
@@ -123,9 +127,14 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
                 await iosSharePDF(htmlData, data?.title as string);
             }
          };
- 
+
+     const handleSystemPrint = async () => {
+           if (!htmlData) return;
+           await printToPrinter(htmlData, data?.title as string);
+         };
 
   return (
+    <>
     <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
       <TouchableOpacity
         style={styles.overlayTouchable}
@@ -156,6 +165,8 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
               title={data.title}
               onClose={onClose}
               onShare={handlePrint}
+              onPrint={Platform.OS === 'android' ? handleSystemPrint : undefined}
+              printing={isPrinting}
             />
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -290,6 +301,8 @@ const BankPaymentReceipt: React.FC<JournalEntryReceiptProps> = ({
         <View style={styles.bottomSpace} />
       </Animated.View>
     </Animated.View>
+    <BluetoothDevicePicker visible={pickerVisible} onSelect={handleDeviceSelected} onClose={closePicker} />
+    </>
   );
 };
 

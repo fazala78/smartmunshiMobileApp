@@ -54,6 +54,7 @@ import StockTransfer from '../screens/StockTransfer';
 import CashTransferScreen from '../screens/CashTransferScreen';
 import BankListScreen from '../screens/BankListScreen';
 import AccountLedgerScreen from '../screens/AccountLedgerScreen';
+import PrintSettingsScreen from '../screens/PrintSettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -163,6 +164,7 @@ const AppNavigator: React.FC = () => {
            <Stack.Screen name="CashTransfer" component={CashTransferScreen} options={{ headerShown: false, gestureEnabled: false }} />
              <Stack.Screen name="bankList" component={BankListScreen} options={{ headerShown: false, gestureEnabled: true }} />
               <Stack.Screen name="AccountLedger" component={AccountLedgerScreen} options={{ headerShown: false, headerBackVisible: false }} />
+              <Stack.Screen name="PrintSettings" component={PrintSettingsScreen} options={{ headerShown: false, gestureEnabled: true }} />
 
         </Stack.Navigator>
       </NavigationContainer>

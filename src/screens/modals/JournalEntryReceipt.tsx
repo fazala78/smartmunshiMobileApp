@@ -20,6 +20,8 @@ import ModalFooter from '../../components/ModalFooter';
 import { fetchJournalEntry, getJournalEntry } from '../../services/journalEntryService';
 import { sharePDF } from '../../services/shareService';
 import { iosSharePDF } from '../../services/iosShareService';
+import { useBluetoothReceiptPrint } from '../../hooks/useBluetoothReceiptPrint';
+import BluetoothDevicePicker from '../../components/BluetoothDevicePicker';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -113,6 +115,8 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
       enabled: visible,
     });
 
+  const { pickerVisible, isPrinting, print: printToPrinter, handleDeviceSelected, closePicker } = useBluetoothReceiptPrint();
+
   if (!visible) {
     return null;
   }
@@ -125,7 +129,13 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
             }
          };
 
+    const handleSystemPrint = async () => {
+             if (!htmlData) return;
+             await printToPrinter(htmlData, data?.title as string);
+           };
+
   return (
+    <>
     <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
       <TouchableOpacity
         style={styles.overlayTouchable}
@@ -159,6 +169,8 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
               title={data.title}
               onClose={onClose}
               onShare={handlePrint}
+              onPrint={Platform.OS === 'android' ? handleSystemPrint : undefined}
+              printing={isPrinting}
             />
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -291,6 +303,8 @@ const JournalEntryReceipt: React.FC<JournalEntryReceiptProps> = ({
         <View style={styles.bottomSpace} />
       </Animated.View>
     </Animated.View>
+    <BluetoothDevicePicker visible={pickerVisible} onSelect={handleDeviceSelected} onClose={closePicker} />
+    </>
   );
 };
 

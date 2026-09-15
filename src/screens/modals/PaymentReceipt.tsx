@@ -20,6 +20,9 @@ import { PaymentResource } from '../../types/receipt';
 import { colors } from '../../theme';
 import { sharePDF } from '../../services/shareService';
 import { iosSharePDF } from '../../services/iosShareService';
+import { ReceiptType } from '../../services/printSettings';
+import { useBluetoothReceiptPrint } from '../../hooks/useBluetoothReceiptPrint';
+import BluetoothDevicePicker from '../../components/BluetoothDevicePicker';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -120,16 +123,28 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
     });
 
  
+   const documentType: ReceiptType | undefined = htmlRoute?.includes('pay-payments')
+     ? 'paidPayment'
+     : htmlRoute?.includes('receive-payments')
+     ? 'receivePayment'
+     : undefined;
+
    const handlePrint = async () => {
      if (!htmlData) return;
       if (Platform.OS === 'android') {
-         await sharePDF(htmlData, data?.title + ' ' + data?.id);
+         await sharePDF(htmlData, data?.title + ' ' + data?.id, documentType);
       }else{
-          await iosSharePDF(htmlData, data?.title + ' ' + data?.id);
+          await iosSharePDF(htmlData, data?.title + ' ' + data?.id, documentType);
       }
-    
+
    };
- 
+
+   const { pickerVisible, isPrinting, print: printToPrinter, handleDeviceSelected, closePicker } = useBluetoothReceiptPrint();
+
+   const handleSystemPrint = async () => {
+     if (!htmlData) return;
+     await printToPrinter(htmlData, data?.title + ' ' + data?.id, documentType);
+   };
 
 
   const getStatusColor = (status: string): string => {
@@ -150,6 +165,7 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
   }
 
   return (
+    <>
     <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
       <TouchableOpacity
         style={styles.overlayTouchable}
@@ -181,6 +197,8 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
               title={data.title}
               onClose={onClose}
               onShare={handlePrint}
+              onPrint={Platform.OS === 'android' ? handleSystemPrint : undefined}
+              printing={isPrinting}
             />
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -315,6 +333,8 @@ const PaymentReceipt: React.FC<PaymentReceiptProps> = ({
         <View style={styles.bottomIndicator} />
       </Animated.View>
     </Animated.View>
+    <BluetoothDevicePicker visible={pickerVisible} onSelect={handleDeviceSelected} onClose={closePicker} />
+    </>
   );
 };
 

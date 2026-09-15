@@ -19,6 +19,8 @@ import ModalHeader from '../../components/ModalHeader';
 import { sharePDF } from '../../services/shareService';
 import { fetchExpenseHtml, getExpense } from '../../services/expensePaymentService';
 import { iosSharePDF } from '../../services/iosShareService';
+import { useBluetoothReceiptPrint } from '../../hooks/useBluetoothReceiptPrint';
+import BluetoothDevicePicker from '../../components/BluetoothDevicePicker';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -99,10 +101,12 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
   const showLoader = hasRoute && isLoading;
   const showError = hasRoute && isError;
 
+  const { pickerVisible, isPrinting, print: printToPrinter, handleDeviceSelected, closePicker } = useBluetoothReceiptPrint();
+
   if (!visible) {
     return null;
   }
-  
+
    const handlePrint = async () => {
        if (!htmlData) return;
         if (Platform.OS === 'android') {
@@ -111,7 +115,13 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
             await iosSharePDF(htmlData, data?.title as string);
         }
      };
+
+   const handleSystemPrint = async () => {
+       if (!htmlData) return;
+       await printToPrinter(htmlData, data?.title as string);
+     };
   return (
+    <>
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Animated.View
         style={[
@@ -132,6 +142,8 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
               title={data.title}
               onClose={onClose}
               onShare={handlePrint}
+              onPrint={Platform.OS === 'android' ? handleSystemPrint : undefined}
+              printing={isPrinting}
             />
 
             <ScrollView
@@ -199,6 +211,8 @@ const ExpenseReceipt: React.FC<ExpenseReceiptProps> = ({
         <View style={styles.safeAreaBottom} />
       </Animated.View>
     </Animated.View>
+    <BluetoothDevicePicker visible={pickerVisible} onSelect={handleDeviceSelected} onClose={closePicker} />
+    </>
   );
 };
 

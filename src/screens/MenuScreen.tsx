@@ -83,7 +83,13 @@ const MENU_SECTIONS: MenuSection[] = [
             { icon: 'menu-book', label: 'Journal', screen: 'Journal', bg: colors.surfaceMuted, color: colors.textSecondary },
             { icon: 'inventory', label: 'Products', screen: 'products', bg: colors.primaryMuted, color: colors.primary },
             { icon: 'account-balance', label: 'Banks', screen: 'bankList', bg: colors.warningLight, color: colors.warning2 },
-           
+
+        ],
+    },
+    {
+        title: 'SETTINGS',
+        items: [
+            { icon: 'print', label: 'Print Settings', screen: 'PrintSettings', bg: colors.infoLight, color: colors.info },
         ],
     },
 ];
