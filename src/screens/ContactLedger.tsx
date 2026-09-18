@@ -14,14 +14,16 @@ import {
     FlatList,
     ActivityIndicator,
     RefreshControl,
+    ScrollView,
 } from 'react-native';
 import { RootStackParamList } from '../types/navigation';
 import { Contact, Transaction } from '../types/contact';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FilterBtn from '../components/ui/FilterBtn';
 import ContactProfile from '../components/ui/ContactProfile';
+import ChequeSummaryCards from '../components/ui/ChequeSummaryCards';
 import { colors, typography } from '../theme';
-import { getContactTransactions, getContactTransactionTypes } from '../services/contactService';
+import { getContactTransactions, getContactTransactionTypes, getContactChequeSummary } from '../services/contactService';
 import { formatBalance } from '../utils/currency';
 import DateRangePicker from '../components/ui/DateRangePicker';
 import TransactionSlip from './modals/TransactionSlip';
@@ -36,7 +38,10 @@ import Empty from '../components/common/Empty';
 import { Badge } from '../components/ui/Badge';
 import FilterModal from '../components/FilterModal';
 import ContactLedgerDialog from './modals/ContactLedgerDialog';
+import ContactChequeListModal from './modals/ContactChequeListModal';
 import { toDateString } from '../utils/stringUtils';
+import { ChequeSummaryItem } from '../types/contact';
+import { ChequeStatus } from '../types/cheques';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +107,21 @@ const ContactLedger: React.FC<Props> = ({ route }) => {
         staleTime: 5 * 60 * 1000,
     });
 
+    // ── Fetch cheque summary cards (server decides the card set by contact type) ──
+    const { data: chequeSummary = [], refetch: refetchChequeSummary } = useQuery({
+        queryKey: ['contactChequeSummary', route.params.contact.id],
+        queryFn: () => getContactChequeSummary(route.params.contact.id),
+        staleTime: 30 * 1000,
+    });
+
+    // ── Cheque list modal (opened from any cheque-summary card that carries a cheque_status) ──
+    const [chequeListModal, setChequeListModal] = useState<{ status: ChequeStatus; title: string } | null>(null);
+
+    const handleChequeCardPress = useCallback((item: ChequeSummaryItem) => {
+        if (!item.cheque_status) return;
+        setChequeListModal({ status: item.cheque_status as ChequeStatus, title: item.label });
+    }, []);
+
     // ── Infinite query ────────────────────────────────────────────────────────
     const {
         data,
@@ -147,6 +167,17 @@ const ContactLedger: React.FC<Props> = ({ route }) => {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     const balanceColor = route.params.contact.balance < 0 ? colors.error : colors.primary;
+
+    // Mirrors ContactProfile's internal avatar accent-color logic so the ring
+    // and type pill around it stay visually consistent.
+    const accentColor = useMemo(() => {
+        switch (route.params.contact.type) {
+            case 'client': return colors.primary;
+            case 'vendor': return colors.warning;
+            case 'walk-in': return colors.info;
+            default: return colors.warningDark;
+        }
+    }, [route.params.contact.type]);
 
     const formatTransactionType = (value = '') =>
         value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -316,34 +347,61 @@ const ContactLedger: React.FC<Props> = ({ route }) => {
                 </View>
 
 
-                {/* Profile */}
+                {/* Info block — capped height + internally scrollable so the
+                    transaction list below always keeps at least ~1/3 of the screen. */}
+                <ScrollView style={styles.topSection} showsVerticalScrollIndicator={false}>
+                {/* Profile — compact card row */}
                 <View style={styles.profileSection}>
-                    <ContactProfile
-                        avatar={route.params.contact.avatar}
-                        name={route.params.contact.name}
-                        type={route.params.contact.type}
-                    />
+                    <View style={[styles.avatarRing, { borderColor: accentColor }]}>
+                        <ContactProfile
+                            avatar={route.params.contact.avatar}
+                            name={route.params.contact.name}
+                            type={route.params.contact.type}
+                        />
+                    </View>
                     <View style={styles.contactInfo}>
-                        <Text style={styles.contactName}>{route.params.contact.name}</Text>
-                        <Text style={styles.contactPhone}>{route.params.contact.phone}</Text>
+                        <Text style={styles.contactName} numberOfLines={1}>{route.params.contact.name}</Text>
+                        <View style={styles.contactMetaRow}>
+                            {!!route.params.contact.type && (
+                                <View style={[styles.typePill, { backgroundColor: accentColor + '1a' }]}>
+                                    <Text style={[styles.typePillText, { color: accentColor }]}>
+                                        {route.params.contact.type.replace('-', ' ').toUpperCase()}
+                                    </Text>
+                                </View>
+                            )}
+                            <Text style={styles.contactPhone} numberOfLines={1}>{route.params.contact.phone}</Text>
+                        </View>
                     </View>
-                    <View style={styles.balanceContainer}>
-                        <Text style={styles.balanceLabel}>Current Balance</Text>
-                        <Text style={[styles.balanceAmountLarge, { color: balanceColor }]}>
-                            {formatBalance(route.params.contact.balance, route.params.contact.currency)}
-                        </Text>
+                    <View style={[styles.balanceChip, { backgroundColor: balanceColor + '14' }]}>
+                        <Icon
+                            name={route.params.contact.balance < 0 ? 'trending-down' : 'trending-up'}
+                            size={13}
+                            color={balanceColor}
+                        />
+                        <View>
+                            <Text style={styles.balanceLabel}>Balance</Text>
+                            <Text style={[styles.balanceAmountCompact, { color: balanceColor }]} numberOfLines={1}>
+                                {formatBalance(route.params.contact.balance, route.params.contact.currency)}
+                            </Text>
+                        </View>
                     </View>
+                </View>
+
+                {/* Cheque summary — card set depends on contact type (vendor vs client/walk-in) */}
+                <View style={styles.chequeSummarySection}>
+                    <ChequeSummaryCards
+                        items={chequeSummary}
+                        currency={route.params.contact.currency}
+                        onCardPress={handleChequeCardPress}
+                    />
                 </View>
 
                 {/* Filter bar */}
                 <View style={styles.filterBar}>
-                    <View>
-                        <Text style={styles.filterLabel}>Recent Transactions</Text>
-                        <Text style={styles.filterSubtitle}>
-                            Showing: {filters.type === 'all' ? 'All Types' : filters.type}
-                            {filters.fromDate || filters.toDate ? ' (Filtered)' : ' All Time'}
-                        </Text>
-                    </View>
+                    <Text style={styles.filterLabel} numberOfLines={1}>
+                        {filters.type === 'all' ? 'All Types' : filters.type}
+                        {filters.fromDate || filters.toDate ? ' · Filtered' : ' · All Time'}
+                    </Text>
                     <FilterBtn onPress={() => { setDraftFilters(filters); setFilterVisible(true); }} />
                 </View>
 
@@ -354,37 +412,43 @@ const ContactLedger: React.FC<Props> = ({ route }) => {
                     <Text style={styles.columnHeaderRight}>Credit</Text>
                     <Text style={styles.columnHeaderRight}>Bal.</Text>
                 </View>
+                </ScrollView>
 
-                {/* List */}
-                {isLoading && transactionsWithBalance.length === 0 ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={colors.primary} />
-                        <Text style={styles.loadingMessage}>Loading transactions...</Text>
-                    </View>
-                ) : !isLoading && transactionsWithBalance.length === 0 ? (
-                    <Empty title="No Transaction found" />
-                ) : (
-                    <FlatList
-                        ref={flatListRef}
-                        data={transactionsWithBalance}
-                        renderItem={renderTransaction}
-                        keyExtractor={(item, index) => `transaction-${item.id}-${index}`}
-                        inverted
-                        contentContainerStyle={styles.listContent}
-                        showsVerticalScrollIndicator={false}
-                        onEndReached={handleLoadMore}
-                        onEndReachedThreshold={1.3}
-                        ListHeaderComponent={renderHeader}
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={isRefetching && !isLoading}
-                                onRefresh={handleRefresh}
-                                colors={[colors.primary]}
-                                tintColor={colors.primary}
-                            />
-                        }
-                    />
-                )}
+                {/* List — explicit flex:1 so this section reliably claims all remaining
+                    height instead of shrinking to content size under the fixed-height
+                    header blocks above it. */}
+                <View style={styles.listSection}>
+                    {isLoading && transactionsWithBalance.length === 0 ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color={colors.primary} />
+                            <Text style={styles.loadingMessage}>Loading transactions...</Text>
+                        </View>
+                    ) : !isLoading && transactionsWithBalance.length === 0 ? (
+                        <Empty title="No Transaction found" />
+                    ) : (
+                        <FlatList
+                            ref={flatListRef}
+                            style={styles.transactionList}
+                            data={transactionsWithBalance}
+                            renderItem={renderTransaction}
+                            keyExtractor={(item, index) => `transaction-${item.id}-${index}`}
+                            inverted
+                            contentContainerStyle={styles.listContent}
+                            showsVerticalScrollIndicator={false}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={1.3}
+                            ListHeaderComponent={renderHeader}
+                            refreshControl={
+                                <RefreshControl
+                                    refreshing={isRefetching && !isLoading}
+                                    onRefresh={handleRefresh}
+                                    colors={[colors.primary]}
+                                    tintColor={colors.primary}
+                                />
+                            }
+                        />
+                    )}
+                </View>
 
                 {/* Bottom actions */}
                 <View style={styles.bottomActions}>
@@ -498,6 +562,18 @@ const ContactLedger: React.FC<Props> = ({ route }) => {
                     contact={route.params.contact}
                 />
 
+                {/* Cheque list — drilled into from a "Pending"/"Partial" cheque-summary card */}
+                {chequeListModal && (
+                    <ContactChequeListModal
+                        visible={!!chequeListModal}
+                        contactId={route.params.contact.id}
+                        status={chequeListModal.status}
+                        title={chequeListModal.title}
+                        currency={route.params.contact.currency}
+                        onClose={() => setChequeListModal(null)}
+                        onActionSuccess={() => refetchChequeSummary()}
+                    />
+                )}
 
             </SafeAreaView>
         </>
@@ -524,17 +600,34 @@ const styles = StyleSheet.create({
     downloadButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
     downloadButtonText: { fontSize: 20, color: colors.primary },
 
-    profileSection: { paddingHorizontal: 16, paddingVertical: 5, backgroundColor: colors.white, alignItems: 'center' },
-    contactInfo: { alignItems: 'center', marginTop: 8 },
-    contactName: { fontSize: 20, fontWeight: '700', color: '#111813', textTransform: 'capitalize' },
-    contactPhone: { fontSize: 14, fontWeight: '500', color: '#61896f', marginTop: 4 },
-    balanceContainer: { marginTop: 16, backgroundColor: colors.backgroundLight, width: '100%', padding: 16, borderRadius: 12, alignItems: 'center' },
-    balanceLabel: { fontSize: 10, fontWeight: '700', color: '#61896f', letterSpacing: 1.5, textTransform: 'uppercase' },
-    balanceAmountLarge: { fontSize: 28, fontWeight: '700', marginTop: 4 },
+    // Capped so the transaction list below always keeps at least ~1/3 of the
+    // screen; scrolls internally on the rare case its content exceeds this.
+    topSection: { maxHeight: '65%', flexGrow: 0 },
 
-    filterBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.white, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.backgroundLight },
-    filterLabel: { fontSize: 10, fontWeight: '700', color: '#61896f', letterSpacing: 1.5, textTransform: 'uppercase' },
-    filterSubtitle: { fontSize: 12, color: '#61896f', marginTop: 2 },
+    profileSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 4,
+        padding: 12,
+        borderRadius: 18,
+        backgroundColor: colors.white,
+        gap: 10,
+    },
+    avatarRing: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+    contactInfo: { flex: 1, minWidth: 0, gap: 4 },
+    contactName: { fontSize: 15, fontWeight: '800', color: '#111813', textTransform: 'capitalize' },
+    contactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    typePill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+    typePillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+    contactPhone: { fontSize: 12, fontWeight: '500', color: '#61896f', flexShrink: 1 },
+    balanceChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14 },
+    balanceLabel: { fontSize: 9, fontWeight: '700', color: '#61896f', letterSpacing: 1.2, textTransform: 'uppercase' },
+    balanceAmountCompact: { fontSize: 15, fontWeight: '800', marginTop: 1 },
+
+    chequeSummarySection: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, backgroundColor: colors.white },
+
+    filterBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6, backgroundColor: colors.white, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.backgroundLight },
+    filterLabel: { fontSize: 12, fontWeight: '600', color: '#61896f', flexShrink: 1 },
 
     tableHeader: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.backgroundLight },
     columnHeader: { width: '40%', fontSize: 10, fontWeight: '700', color: '#61896f', letterSpacing: 1.5, textTransform: 'uppercase' },
@@ -548,6 +641,8 @@ const styles = StyleSheet.create({
     creditAmount: { width: '20%', fontSize: 12, fontWeight: '500', color: colors.error, textAlign: 'right' },
     balanceAmount: { width: '20%', fontSize: 12, fontWeight: '700', color: '#111813', textAlign: 'right' },
 
+    listSection: { flex: 1 },
+    transactionList: { flex: 1 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     loadingMessage: { marginTop: 12, fontSize: 16, color: '#61896f', fontWeight: '500' },
     listContent: { paddingTop: 50 },

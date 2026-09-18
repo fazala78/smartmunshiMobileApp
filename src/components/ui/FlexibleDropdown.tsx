@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, LogBox } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker';
-import api from '../../services/api';
-import { colors } from '../../theme';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, ActivityIndicator,
+  TouchableOpacity, Modal, TextInput, ScrollView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
-
+import api from '../../services/api';
+import { colors, typography } from '../../theme';
 
 export interface DropdownItem {
   label: string;
@@ -16,6 +17,7 @@ interface FlexibleDropdownProps {
   // Basic Props
   label?: string;
   placeholder?: string;
+  modalTitle?: string;
 
   // Selection Mode
   multiple?: boolean; // true = multi-select, false = single-select
@@ -32,6 +34,9 @@ interface FlexibleDropdownProps {
 
   // Optional Props
   disabled?: boolean;
+
+  // Kept for call-site compatibility with the previous inline-dropdown
+  // implementation — meaningless now that selection happens in a modal.
   maxHeight?: number;
   zIndex?: number;
   zIndexInverse?: number;
@@ -43,9 +48,15 @@ interface FlexibleDropdownProps {
   apiDataKey?: string; // Key in API response where array is (default: 'data')
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+// Opens a full-screen modal (matching ApiDropdown/LocalDropdown's modalMode)
+// with a searchable, checkable list instead of the old inline dropdown-picker —
+// far more usable on a phone-sized field, for both static and API-backed data.
+
 const FlexibleDropdown: React.FC<FlexibleDropdownProps> = ({
   label,
   placeholder = 'Select an option',
+  modalTitle,
   multiple = false,
   items = [],
   async = false,
@@ -54,270 +65,286 @@ const FlexibleDropdown: React.FC<FlexibleDropdownProps> = ({
   value,
   onValueChange,
   disabled = false,
-  maxHeight = 300,
-  zIndex = 1000,
-  zIndexInverse = 1000,
   apiSearchParam = 'search',
   apiLabelKey = 'label',
   apiValueKey = 'value',
   apiDataKey = 'data',
 }) => {
-  const [open, setOpen] = useState<boolean>(false);
-  const [dropdownItems, setDropdownItems] = useState<DropdownItem[]>(items);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [asyncItems, setAsyncItems] = useState<DropdownItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // For single select
-  const [singleValue, setSingleValue] = useState<string | null>(
-    !multiple && typeof value === 'string' ? value : null
-  );
+  const selectedValues: string[] = Array.isArray(value) ? value : value ? [value] : [];
 
-  // For multi select
-  const [multiValue, setMultiValue] = useState<string[]>(
-    multiple && Array.isArray(value) ? value : []
-  );
-
-  // Load items from API
-  const loadFromAPI = async (search: string = '') => {
-    if (!apiUrl) {
-      console.error('API URL is required when async is true');
-      return;
-    }
-
+  const fetchAsyncData = async (search = '') => {
+    if (!apiUrl) return;
     setLoading(true);
     try {
-      const params: any = {};
-      if (search) {
-        params[apiSearchParam] = search;
-      }
-
-      const response = await api.get(apiUrl, { params });
-
-      // Extract data from response
-      const responseData = apiDataKey
-        ? response.data[apiDataKey]
-        : response.data;
-
-      // Map to dropdown format
-      const mappedItems: DropdownItem[] = responseData.map((item: any) => ({
+      const response = await api.get(apiUrl, {
+        params: search ? { [apiSearchParam]: search } : {},
+      });
+      const data = apiDataKey ? response.data[apiDataKey] : response.data;
+      const mapped: DropdownItem[] = data.map((item: any) => ({
         label: item[apiLabelKey],
-        id: item[apiValueKey],
+        value: String(item[apiValueKey]),
       }));
-
-      setDropdownItems(mappedItems);
-    } catch (error) {
-      console.error('Error loading dropdown data:', error);
-      setDropdownItems([]);
+      setAsyncItems(mapped);
+    } catch (e) {
+      console.error('FlexibleDropdown API error:', e);
+      setAsyncItems([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load data on mount if async
+  // initial async load
   useEffect(() => {
-    if (async) {
-      loadFromAPI();
-    } else {
-      setDropdownItems(items);
-    }
+    if (async) fetchAsyncData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [async, apiUrl]);
 
-  // Update items when prop changes (for static mode)
-  useEffect(() => {
-    if (!async) {
-      setDropdownItems(items);
-    }
-  }, [items, async]);
+  const displayedItems: DropdownItem[] = async
+    ? asyncItems
+    : searchable && searchText
+      ? items.filter((item) => item.label.toLowerCase().includes(searchText.toLowerCase()))
+      : items;
 
-  // Sync external value changes
-  useEffect(() => {
-    if (multiple && Array.isArray(value)) {
-      setMultiValue(value);
-    } else if (!multiple && typeof value === 'string') {
-      setSingleValue(value);
-    }
-  }, [value, multiple]);
+  const handleOpen = () => {
+    if (disabled) return;
+    setSearchText('');
+    if (async) fetchAsyncData('');
+    setModalVisible(true);
+  };
 
-  // Handle search for API mode
-  const handleSearch = (text: string) => {
-    if (async) {
-      // Debounce API calls
-      const timeoutId = setTimeout(() => {
-        loadFromAPI(text);
-      }, 500);
-      return () => clearTimeout(timeoutId);
+  const handleClose = () => setModalVisible(false);
+
+  const handleSearchChange = (text: string) => {
+    setSearchText(text);
+    if (!searchable || !async) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchAsyncData(text), 400);
+  };
+
+  const toggleItem = (itemValue: string) => {
+    if (multiple) {
+      const next = selectedValues.includes(itemValue)
+        ? selectedValues.filter((v) => v !== itemValue)
+        : [...selectedValues, itemValue];
+      onValueChange(next);
+    } else {
+      onValueChange(itemValue);
+      setModalVisible(false);
     }
   };
 
-  // Handle value change
-  const handleValueChange = (val: any) => {
-    console.log(val);
-    onValueChange(val);
-  };
-
+  const handleClearAll = () => onValueChange(multiple ? [] : null);
 
   return (
-    <View style={[styles.wrapper, { zIndex }]}>
+    <View style={styles.wrapper}>
       {label && <Text style={styles.label}>{label}</Text>}
 
-      <DropDownPicker
-        open={open}
-        value={multiple ? multiValue : singleValue}
-        items={dropdownItems}
-        setOpen={setOpen}
-        setValue={multiple ? setMultiValue : setSingleValue}
-        setItems={setDropdownItems}
-        onChangeValue={handleValueChange}
-
-        // Selection mode
-        multiple={multiple}
-        mode={multiple ? 'BADGE' : 'DEFAULT'}
-
-        // Search
-        searchable={searchable}
-        onChangeSearchText={handleSearch}
-        searchPlaceholder="Search..."
-
-        // UI
-        placeholder={placeholder}
+      <TouchableOpacity
+        style={[styles.trigger, disabled && styles.triggerDisabled]}
+        onPress={handleOpen}
+        activeOpacity={0.7}
         disabled={disabled}
-        loading={loading}
-        maxHeight={maxHeight}
-        zIndex={zIndex}
-        zIndexInverse={zIndexInverse}
-
-        // Styling
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdownContainer}
-        textStyle={styles.text}
-        placeholderStyle={styles.placeholder}
-        searchTextInputStyle={styles.searchInput}
-        selectedItemContainerStyle={styles.selectedItemContainer}
-        selectedItemLabelStyle={styles.selectedItemLabel}
-        badgeStyle={styles.badge}
-        badgeTextStyle={styles.badgeText}
-        badgeDotStyle={styles.badgeDot}
-        listMode="SCROLLVIEW"
-        dropDownDirection="BOTTOM"
-        searchTextInputProps={{
-          autoFocus: true,   // 👈 focus search input on open
-        }}
-        // Icons
-        ArrowDownIconComponent={() => (
-          <Icon
-            name='keyboard-arrow-down'
-            size={22}
-            color={colors.gray400}
-          />
+      >
+        <Icon name="filter-list" size={18} color={colors.gray400} />
+        {selectedValues.length > 0 ? (
+          <View style={styles.selectedChip}>
+            <Text style={styles.selectedChipText}>
+              {selectedValues.length} selected
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.placeholderText} numberOfLines={1}>{placeholder}</Text>
         )}
-        ArrowUpIconComponent={() => (
-          <Icon
-            name='keyboard-arrow-up'
-            size={22}
-            color={colors.gray400}
-          />
-        )}
-        TickIconComponent={() => (
-          <Text style={styles.tick}>✓</Text>
-        )}
+        <View style={styles.trailingArea}>
+          {selectedValues.length > 0 ? (
+            <TouchableOpacity
+              onPress={handleClearAll}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={disabled}
+            >
+              <Icon name="close" size={18} color={colors.gray400} />
+            </TouchableOpacity>
+          ) : (
+            <Icon name="chevron-right" size={20} color={colors.gray400} />
+          )}
+        </View>
+      </TouchableOpacity>
 
-        // Loading
-        ActivityIndicatorComponent={() => (
-          <ActivityIndicator size="small" color={colors.primary} />
-        )}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handleClose}
+      >
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right', 'bottom']}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>{modalTitle ?? label ?? 'Select'}</Text>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={handleClose} activeOpacity={0.7}>
+              <Icon name="close" size={20} color={colors.gray600} />
+            </TouchableOpacity>
+          </View>
 
-        // Translations
-        listMessageTextStyle={styles.listMessage}
+          {searchable && (
+            <View style={styles.modalSearchRow}>
+              <Icon name="search" size={20} color={colors.gray400} />
+              <TextInput
+                style={styles.modalSearchInput}
+                value={searchText}
+                onChangeText={handleSearchChange}
+                placeholder="Search..."
+                placeholderTextColor={colors.gray400}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+              />
+              {searchText.length > 0 && (
+                <TouchableOpacity onPress={() => handleSearchChange('')} activeOpacity={0.7}>
+                  <Icon name="cancel" size={18} color={colors.gray400} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
-        // Multiple mode specific
-        {...(multiple && {
-          min: 0,
-          badgeSeparatorStyle: styles.badgeSeparator,
-        })}
-      />
+          {selectedValues.length > 0 && (
+            <TouchableOpacity style={styles.modalClearRow} onPress={handleClearAll} activeOpacity={0.7}>
+              <Icon name="close" size={16} color={colors.danger} />
+              <Text style={styles.modalClearText}>Clear selection ({selectedValues.length})</Text>
+            </TouchableOpacity>
+          )}
+
+          {loading ? (
+            <View style={styles.stateBox}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.stateText}>Loading…</Text>
+            </View>
+          ) : displayedItems.length === 0 ? (
+            <View style={styles.stateBox}>
+              <Icon name="search-off" size={30} color={colors.gray300} />
+              <Text style={styles.stateText}>
+                {searchText ? `No results for "${searchText}"` : 'No results found'}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+              {displayedItems.map((item, index) => {
+                const isChosen = selectedValues.includes(item.value);
+                return (
+                  <React.Fragment key={item.value}>
+                    {index > 0 && <View style={styles.separator} />}
+                    <TouchableOpacity
+                      style={[styles.listItem, isChosen && styles.listItemSelected]}
+                      onPress={() => toggleItem(item.value)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.checkbox, isChosen && styles.checkboxChecked]}>
+                        {isChosen && <Icon name="check" size={14} color={colors.white} />}
+                      </View>
+                      <Text style={[styles.listItemName, isChosen && styles.listItemNameSelected]} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      {isChosen && <Icon name="check-circle" size={18} color={colors.primary} />}
+                    </TouchableOpacity>
+                  </React.Fragment>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.doneBtn} onPress={handleClose} activeOpacity={0.85}>
+              <Text style={styles.doneBtnText}>
+                Done{selectedValues.length > 0 ? ` (${selectedValues.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 };
 
+export default FlexibleDropdown;
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 10,
-  },
+  wrapper: { gap: 6 },
   label: { fontSize: 10, fontWeight: '800', color: colors.textPlaceholder, letterSpacing: 1.2, textTransform: 'uppercase' },
-  dropdown: {
+
+  trigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: colors.backgroundLight,
     borderColor: colors.gray200,
-    borderWidth: 1,
-    borderRadius: 12,
+    borderWidth: 1.5,
+    borderRadius: 8,
     minHeight: 48,
-  },
-  dropdownContainer: {
-    backgroundColor: colors.white,
-    borderColor: colors.gray200,
-    borderWidth: 1,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  text: {
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  placeholder: {
-    color: colors.gray400,
-    fontSize: 15,
-  },
-  searchInput: {
-    borderColor: colors.gray200,
-    borderWidth: 1,
-    borderRadius: 8,
     paddingHorizontal: 12,
-    fontSize: 16,
-    color: '#111813',
-    height: 45
   },
-  selectedItemContainer: {
-    backgroundColor: 'rgba(19, 236, 91, 0.1)',
-  },
-  selectedItemLabel: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  badge: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
+  triggerDisabled: { opacity: 0.5 },
+  placeholderText: { flex: 1, fontSize: typography.body.fontSize, color: colors.gray400 },
+  selectedChip: {
+    backgroundColor: colors.primaryMuted,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  badgeText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.white,
-  },
-  badgeSeparator: {
-    width: 4,
-  },
-  arrow: {
-    fontSize: 12,
-    color: colors.backgroundDark,
-  },
-  tick: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  listMessage: {
-    color: colors.textPlaceholder,
-    fontSize: 14,
-    textAlign: 'center',
-    padding: 20,
-  },
-   wrapper: { gap: 6 },
-});
+  selectedChipText: { fontSize: 12.5, fontWeight: '700', color: colors.primary },
+  trailingArea: { flexDirection: 'row', alignItems: 'center' },
 
-export default FlexibleDropdown;
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  modalContainer: { flex: 1, backgroundColor: colors.white },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.gray200,
+  },
+  modalHeaderTitle: { fontSize: 17, fontWeight: '700', color: colors.gray900 },
+  modalCloseBtn: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: colors.backgroundLight,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalSearchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1.5, borderColor: colors.gray200, backgroundColor: colors.backgroundLight,
+  },
+  modalSearchInput: { flex: 1, fontSize: typography.body.fontSize, color: colors.gray900, paddingVertical: 0 },
+  modalClearRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 16, marginTop: 10 },
+  modalClearText: { fontSize: 13, fontWeight: '600', color: colors.danger },
+  modalList: { flex: 1, marginTop: 8 },
+
+  separator: { height: 1, backgroundColor: colors.gray200, marginHorizontal: 12 },
+  listItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.white,
+  },
+  listItemSelected: { backgroundColor: colors.primaryMuted },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.gray300,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  listItemName: { flex: 1, fontSize: typography.body.fontSize, fontWeight: '600', color: colors.gray900 },
+  listItemNameSelected: { color: colors.primary },
+
+  stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  stateText: { fontSize: 13, color: colors.gray400, textAlign: 'center' },
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+  modalFooter: {
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4,
+    borderTopWidth: 1, borderTopColor: colors.gray200,
+  },
+  doneBtn: {
+    backgroundColor: colors.primary, borderRadius: 12,
+    paddingVertical: 14, alignItems: 'center', justifyContent: 'center',
+  },
+  doneBtnText: { color: colors.white, fontWeight: '700', fontSize: 14 },
+});

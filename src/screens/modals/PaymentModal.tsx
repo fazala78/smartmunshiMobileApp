@@ -83,6 +83,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ draft, onChange, onSave, onCancel
           creatable={false} label="Bank Account"
           leadingIconName="account-balance" inputBg={colors.white}
           onSelect={(v) => onChange({ account: v as unknown as Account })}
+          modalMode
+          modalTitle="Select Bank Account"
           value={draft.account ?? null}
         />
         <InputField
@@ -109,6 +111,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ draft, onChange, onSave, onCancel
             label="Issuing Bank"
             onSelect={(v) => onChange({ bank: v as unknown as Bank })}
             value={draft.bank as any}
+            modalMode
+            modalTitle="Select Bank"
           />
         </View>
         <DatePickerField
@@ -182,7 +186,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const currency = useCurrency();
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [draft, setDraft]               = useState<Payment | null>(null);
+  const [draft, setDraft] = useState<Payment | null>(null);
 
   useEffect(() => {
     if (!visible) { setEditingIndex(null); setDraft(null); }
@@ -192,8 +196,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const totalPaid = payments.reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0);
   const due = Number(totalDue);
 
-  const openAdd   = (type: typeof RECEIVE_PAYMENT[0]) => { setDraft(blankDraft(type, currency)); setEditingIndex(-1); };
-  const openEdit  = (index: number) => { setDraft({ ...payments[index] }); setEditingIndex(index); };
+  const openAdd = (type: typeof RECEIVE_PAYMENT[0]) => { setDraft(blankDraft(type, currency)); setEditingIndex(-1); };
+  const openEdit = (index: number) => { setDraft({ ...payments[index] }); setEditingIndex(index); };
   const closeForm = () => { setDraft(null); setEditingIndex(null); };
 
   const handleSave = () => {
@@ -497,10 +501,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  balanceRowOver:  { backgroundColor: colors.errorBg },
+  balanceRowOver: { backgroundColor: colors.errorBg },
   balanceRowExact: { backgroundColor: colors.primaryLight },
   balanceLabel: { fontSize: 13, fontWeight: '700', color: colors.gray700 },
-  balanceSub:   { fontSize: 11, color: colors.gray500, marginTop: 2 },
+  balanceSub: { fontSize: 11, color: colors.gray500, marginTop: 2 },
   balanceAmount: { fontSize: 20, fontWeight: '900', color: colors.gray900 },
 
   // ── Footer ──

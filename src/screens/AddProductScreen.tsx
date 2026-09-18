@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet, TouchableOpacity,
+    View, Text, StyleSheet, TouchableOpacity,
     ActivityIndicator, Animated, Image, Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
@@ -59,7 +60,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     const [footerError, setFooterError] = useState<string | null>(null);
     const [anyDropdownOpen, setAnyDropdownOpen] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
     const { play } = useSuccessSound();
 
     const toastAnim = useRef(new Animated.Value(0)).current;
@@ -146,7 +147,7 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
     const handleDropdownOpen = () => {
         Keyboard.dismiss();
         setAnyDropdownOpen(true);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 300);
     };
 
     const ThumbIcon = () =>
@@ -177,56 +178,58 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
             {/* ── Header ── */}
             <Header title='New Product' navigation={navigation} />
 
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={styles.body}
-                    contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={anyDropdownOpen ? 'none' : 'on-drag'}
-                    automaticallyAdjustKeyboardInsets
-                    showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView
+                ref={scrollViewRef}
+                style={styles.body}
+                contentContainerStyle={styles.bodyContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={anyDropdownOpen ? 'none' : 'on-drag'}
+                enableOnAndroid
+                extraScrollHeight={20}
+                enableResetScrollToCoords={false}
+                showsVerticalScrollIndicator={false}>
 
-                    {/* Toast */}
-                    {toast && (
-                        <Animated.View style={[styles.toast, {
-                            opacity: toastAnim,
-                            transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
-                        }]}>
-                            <Icon name="error-outline" size={16} color={colors.white} />
-                            <Text style={styles.toastText} numberOfLines={2}>{toast}</Text>
-                            <TouchableOpacity onPress={() => setToast(null)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                <Icon name="close" size={15} color="rgba(255,255,255,0.7)" />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
-
-                    {/* ── Photo ── */}
-                    <View style={styles.photoSection}>
-                        <TouchableOpacity style={styles.photoBtn} activeOpacity={0.8}>
-                            {photo
-                                ? <Image source={{ uri: photo }} style={styles.photoImage} />
-                                : <>
-                                    <Icon name="add-a-photo" size={36} color={colors.primary} />
-                                    <Text style={styles.photoLabel}>Add Photo</Text>
-                                </>
-                            }
+                {/* Toast */}
+                {toast && (
+                    <Animated.View style={[styles.toast, {
+                        opacity: toastAnim,
+                        transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
+                    }]}>
+                        <Icon name="error-outline" size={16} color={colors.white} />
+                        <Text style={styles.toastText} numberOfLines={2}>{toast}</Text>
+                        <TouchableOpacity onPress={() => setToast(null)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Icon name="close" size={15} color="rgba(255,255,255,0.7)" />
                         </TouchableOpacity>
-                    </View>
+                    </Animated.View>
+                )}
 
-                    {/* ── Basic Info ── */}
-                    <View style={styles.section}>
-                        <InputField
-                            bg="white"
-                            label="Product Name"
-                            type="text"
-                            value={form.name}
-                            onChangeText={(v) => update({ name: v })}
-                            placeholder="Enter product name"
-                            icon="inventory-2"
-                        />
+                {/* ── Photo ── */}
+                <View style={styles.photoSection}>
+                    <TouchableOpacity style={styles.photoBtn} activeOpacity={0.8}>
+                        {photo
+                            ? <Image source={{ uri: photo }} style={styles.photoImage} />
+                            : <>
+                                <Icon name="add-a-photo" size={36} color={colors.primary} />
+                                <Text style={styles.photoLabel}>Add Photo</Text>
+                            </>
+                        }
+                    </TouchableOpacity>
+                </View>
 
-                         {/* ── Inventory Initializer ── */}
+                {/* ── Basic Info ── */}
+                <View style={styles.section}>
+                    <InputField
+                        bg="white"
+                        label="Product Name"
+                        type="text"
+                        value={form.name}
+                        onChangeText={(v) => update({ name: v })}
+                        placeholder="Enter product name"
+                        icon="inventory-2"
+                    />
+
+                    {/* ── Inventory Initializer ── */}
                     <View style={styles.inventorySection}>
                         <Text style={styles.sectionTitle}>Inventory Initializer</Text>
                         <View style={styles.row}>
@@ -254,128 +257,132 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
                                     onOpen={handleDropdownOpen}
                                     onClose={() => setAnyDropdownOpen(false)}
                                     value={null}
+                                    modalMode
+                                    modalTitle="Select Unit"
                                 />
                             </View>
                         </View>
                     </View>
 
-                      
-                    </View>
 
-                    {/* ── Pricing (side by side) ── */}
-                    <View style={styles.row}>
-                        <View style={styles.rowItem}>
-                            <InputField
-                                bg="white"
-                                label="Purchase Price"
-                                type="decimal"
-                                value={form.cost}
-                                onChangeText={(v) => update({ cost: parseFloat(v) || 0 })}
-                                placeholder="0.00"
-                                icon="attach-money"
-                            />
-                        </View>
-                        <View style={styles.rowItem}>
-                            <InputField
-                                bg="white"
-                                label="Sale Price"
-                                type="decimal"
-                                value={form.price}
-                                onChangeText={(v) => update({ price: parseFloat(v) || 0 })}
-                                placeholder="0.00"
-                                icon="sell"
-                            />
-                        </View>
-                    </View>
-                    <View style={styles.barcodeRow}>
-                        <View style={styles.barcodeInput}>
-                            <InputField
-                                bg="white"
-                                label="SKU / Barcode"
-                                type="text"
-                                value={form.barcode}
-                                onChangeText={(v) => update({ barcode: v })}
-                                placeholder="Scan or enter SKU"
-                                icon="barcode-reader"
-                            />
-                        </View>
-                        <TouchableOpacity
-                            style={styles.scanBtn}
-                            onPress={() => setShowScanner(true)}
-                            activeOpacity={0.7}
-                        >
-                            <Icon name="qr-code-scanner" size={24} color={colors.white} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* ── Category & Tax (side by side) ── */}
-                    <View style={styles.row}>
-                        <View style={styles.rowItem}>
-                            <AsyncDropdown
-                                url="/categories"
-                                searchParam="query"
-                                minSearchLength={2}
-                                creatable={true}
-                                label="Category"
-                                leadingIconName="category"
-                                inputBg={colors.backgroundLight}
-                                onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })}
-                                onOpen={handleDropdownOpen}
-                                onClose={() => setAnyDropdownOpen(false)}
-                                value={null}
-                            />
-                        </View>
-                       
-                    </View>
-
-                    
-                    {/* Remarks */}
-
-                    <InputField
-                        bg="white"
-                        textAlign="left"
-                        label="Remarks"
-                        type="text"
-                        value={form.remarks ?? ''}
-                        onChangeText={(v) => update({ remarks: v })}
-                        placeholder="Remarks"
-                        icon="description"
-                        multiline
-                        numberOfLines={3}
-                        onFocus={() =>
-                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
-                        }
-                    />
-
-                    <View style={{ height: 25 }} />
-                </ScrollView>
-
-                {/* ── Footer ── */}
-                <View style={styles.footer}>
-                    {footerError ? (
-                        <FooterError
-                            setFooterError={setFooterError}
-                            footerError={footerError}
-                        />
-
-                    ) : null}
-                    <SwipeButton
-                        title={loading ? 'Processing...' : 'Slide to Save Product'}
-                        thumbIconComponent={ThumbIcon}
-                        railBackgroundColor={colors.primaryLight}
-                        railBorderColor={colors.primaryLight}
-                        railFillBackgroundColor={colors.primary}
-                        thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
-                        thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
-                        titleColor={colors.backgroundDark}
-                        titleFontSize={13}
-                        height={52}
-                        swipeSuccessThreshold={70}
-                        disabled={loading}
-                        onSwipeSuccess={handleSubmit}
-                        forceReset={(reset: () => void) => { resetSwipe = reset; }}
-                    />
                 </View>
+
+                {/* ── Pricing (side by side) ── */}
+                <View style={styles.row}>
+                    <View style={styles.rowItem}>
+                        <InputField
+                            bg="white"
+                            label="Purchase Price"
+                            type="decimal"
+                            value={form.cost}
+                            onChangeText={(v) => update({ cost: parseFloat(v) || 0 })}
+                            placeholder="0.00"
+                            icon="attach-money"
+                        />
+                    </View>
+                    <View style={styles.rowItem}>
+                        <InputField
+                            bg="white"
+                            label="Sale Price"
+                            type="decimal"
+                            value={form.price}
+                            onChangeText={(v) => update({ price: parseFloat(v) || 0 })}
+                            placeholder="0.00"
+                            icon="sell"
+                        />
+                    </View>
+                </View>
+                <View style={styles.barcodeRow}>
+                    <View style={styles.barcodeInput}>
+                        <InputField
+                            bg="white"
+                            label="SKU / Barcode"
+                            type="text"
+                            value={form.barcode}
+                            onChangeText={(v) => update({ barcode: v })}
+                            placeholder="Scan or enter SKU"
+                            icon="barcode-reader"
+                        />
+                    </View>
+                    <TouchableOpacity
+                        style={styles.scanBtn}
+                        onPress={() => setShowScanner(true)}
+                        activeOpacity={0.7}
+                    >
+                        <Icon name="qr-code-scanner" size={24} color={colors.white} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* ── Category & Tax (side by side) ── */}
+                <View style={styles.row}>
+                    <View style={styles.rowItem}>
+                        <AsyncDropdown
+                            url="/categories"
+                            searchParam="query"
+                            minSearchLength={2}
+                            creatable={true}
+                            label="Category"
+                            leadingIconName="category"
+                            inputBg={colors.backgroundLight}
+                            onSelect={(v) => update({ categories: v ? [...(form.categories ?? []), v as unknown as CategoriesType] : [] })}
+                            onOpen={handleDropdownOpen}
+                            onClose={() => setAnyDropdownOpen(false)}
+                            value={null}
+                            modalMode
+                            modalTitle="Select Category"
+                        />
+                    </View>
+
+                </View>
+
+
+                {/* Remarks */}
+
+                <InputField
+                    bg="white"
+                    textAlign="left"
+                    label="Remarks"
+                    type="text"
+                    value={form.remarks ?? ''}
+                    onChangeText={(v) => update({ remarks: v })}
+                    placeholder="Remarks"
+                    icon="description"
+                    multiline
+                    numberOfLines={3}
+                    onFocus={() =>
+                        setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 100)
+                    }
+                />
+
+                <View style={{ height: 25 }} />
+            </KeyboardAwareScrollView>
+
+            {/* ── Footer ── */}
+            <View style={styles.footer}>
+                {footerError ? (
+                    <FooterError
+                        setFooterError={setFooterError}
+                        footerError={footerError}
+                    />
+
+                ) : null}
+                <SwipeButton
+                    title={loading ? 'Processing...' : 'Slide to Save Product'}
+                    thumbIconComponent={ThumbIcon}
+                    railBackgroundColor={colors.primaryLight}
+                    railBorderColor={colors.primaryLight}
+                    railFillBackgroundColor={colors.primary}
+                    thumbIconBackgroundColor={loading ? colors.gray400 : colors.primary}
+                    thumbIconBorderColor={loading ? colors.gray400 : colors.primary}
+                    titleColor={colors.backgroundDark}
+                    titleFontSize={13}
+                    height={52}
+                    swipeSuccessThreshold={70}
+                    disabled={loading}
+                    onSwipeSuccess={handleSubmit}
+                    forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                />
+            </View>
 
         </SafeAreaView>
     );
@@ -410,7 +417,7 @@ const styles = StyleSheet.create({
 
     // Section
     section: { gap: 12 },
-    inventorySection: { gap: 12,  paddingTop: 16 },
+    inventorySection: { gap: 12, paddingTop: 16 },
     sectionTitle: { fontSize: 12, fontWeight: '800', color: colors.primary, letterSpacing: 1.2, textTransform: 'uppercase', paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: colors.primaryMuted, alignSelf: 'flex-start' },
 
     // Side-by-side row

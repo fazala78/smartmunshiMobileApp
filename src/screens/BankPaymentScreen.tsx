@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet,
+    View, Text, StyleSheet,
     ActivityIndicator,
     Modal,
     Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
@@ -60,8 +61,8 @@ const BankPaymentScreen: React.FC<Props> = ({ navigation }) => {
     const [createdSlip, setCreatedSlip] = useState<PaymentResource | null>(null);
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
-     const {play} = useSuccessSound();
-    const scrollViewRef = useRef<ScrollView>(null);
+    const { play } = useSuccessSound();
+    const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
     let resetSwipe: (() => void) | null = null;
 
     const update = (fields: Partial<PaymentPayload>) =>
@@ -82,7 +83,7 @@ const BankPaymentScreen: React.FC<Props> = ({ navigation }) => {
         }, 400);  // 400ms matches the modal dismiss animation
     };
 
-     const handleModalClosing = () => {
+    const handleModalClosing = () => {
         setCreatedSlip(null);
         setReceiptModalVisible(false);
         navigation.navigate('Home');
@@ -156,13 +157,15 @@ const BankPaymentScreen: React.FC<Props> = ({ navigation }) => {
 
             <Header title="Bank Payment" navigation={navigation} />
 
-            <ScrollView
+            <KeyboardAwareScrollView
                 ref={scrollViewRef}
                 style={styles.body}
                 contentContainerStyle={styles.bodyContent}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
-                automaticallyAdjustKeyboardInsets
+                enableOnAndroid
+                extraScrollHeight={20}
+                enableResetScrollToCoords={false}
                 showsVerticalScrollIndicator={false}>
                 {/* Account */}
                 <View style={styles.contactCard}>
@@ -181,14 +184,16 @@ const BankPaymentScreen: React.FC<Props> = ({ navigation }) => {
                         inputBg="transparent"
                         placeholder="Search or pick an account…"
                         onSelect={(v) => update({ account: v as unknown as Account })}
+                        modalMode
+                        modalTitle="Select Bank Account"
                     />
                 </View>
-                <PaymentMethods update={update} payload={payload} methods={METHODS}   onRemarksFocus={() =>
-                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
-                        } />
+                <PaymentMethods update={update} payload={payload} methods={METHODS} onRemarksFocus={() =>
+                    setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 100)
+                } />
 
-               
-            </ScrollView>
+
+            </KeyboardAwareScrollView>
 
             <View style={styles.footer}>
                 {footerError ? (
@@ -227,7 +232,7 @@ const BankPaymentScreen: React.FC<Props> = ({ navigation }) => {
                         transaction={createdSlip}
                         visible={receiptModalVisible}
                         onClose={() => handleModalClosing()}
-                         onAddNew={() => handleAddNew()}
+                        onAddNew={() => handleAddNew()}
                     />
                 )}
 

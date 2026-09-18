@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet, TouchableOpacity,
+    View, Text, StyleSheet, TouchableOpacity,
     ActivityIndicator, Image, Keyboard,
     Modal, FlatList, TextInput, SafeAreaView as RNSafeAreaView,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
@@ -66,7 +67,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
     const [contactSearch, setContactSearch] = useState('');
     const [loadingContacts, setLoadingContacts] = useState(false);
     const [anyDropdownOpen, setAnyDropdownOpen] = useState(false);
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
     const { play } = useSuccessSound();
 
     const currency = useCurrency();
@@ -158,7 +159,7 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
         }
         try {
             setLoading(true);
-            const response = await createContact({ ...form, currency  });
+            const response = await createContact({ ...form, currency });
             play();
             setSuccess(response);
             setShowSuccess(true);
@@ -292,210 +293,216 @@ const AddContactScreen: React.FC<Props> = ({ navigation }) => {
             {/* ── Header ── */}
             <Header title='New Contact' navigation={navigation} />
 
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={styles.body}
-                    contentContainerStyle={styles.bodyContent}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={anyDropdownOpen ? 'none' : 'on-drag'}
-                    automaticallyAdjustKeyboardInsets
-                    showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView
+                ref={scrollViewRef}
+                style={styles.body}
+                contentContainerStyle={styles.bodyContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={anyDropdownOpen ? 'none' : 'on-drag'}
+                enableOnAndroid
+                extraScrollHeight={20}
+                enableResetScrollToCoords={false}
+                showsVerticalScrollIndicator={false}>
 
 
-                    {/* ── Avatar ── */}
-                    <View style={styles.avatarSection}>
-                        <View style={styles.avatarOuter}>
-                            <View style={styles.avatarInner}>
-                                {avatar
-                                    ? <Image source={{ uri: avatar }} style={styles.avatarImage} />
-                                    : <Icon name="person" size={40} color={colors.gray400} />
-                                }
-                            </View>
+                {/* ── Avatar ── */}
+                <View style={styles.avatarSection}>
+                    <View style={styles.avatarOuter}>
+                        <View style={styles.avatarInner}>
+                            {avatar
+                                ? <Image source={{ uri: avatar }} style={styles.avatarImage} />
+                                : <Icon name="person" size={40} color={colors.gray400} />
+                            }
                         </View>
-                        <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.8}>
-                            <Icon name="photo-camera" size={18} color={colors.backgroundDark} />
+                    </View>
+                    <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.8}>
+                        <Icon name="photo-camera" size={18} color={colors.backgroundDark} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* ── Identity ── */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Identity</Text>
+
+                    <View style={styles.nameRow}>
+                        <View style={styles.flexOne}>
+                            <InputField
+                                bg="white" label="Full Name" type="text"
+                                value={form.name}
+                                onChangeText={(v) => update({ name: v })}
+                                placeholder="Enter name" icon="badge"
+                            />
+                        </View>
+                        <TouchableOpacity
+                            style={styles.phoneDirBtn}
+                            onPress={handleImportFromContacts}
+                            activeOpacity={0.75}
+                        >
+                            <Icon name="contacts" size={22} color={colors.primary} />
+                        </TouchableOpacity>
+                    </View>
+                    <SelectionButton
+                        label="Contact Type"
+                        options={CONTACT_TYPES}
+                        value={form.type}
+                        onSelect={(key) => update({ type: key as ContactType })}
+                    />
+
+                </View>
+
+                {/* ── Initial Balance ── */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Initial Balance</Text>
+                    <View style={styles.row}>
+                        <View style={styles.flexOne}>
+                            <InputField
+                                bg="white" label="Opening Balance" type="decimal"
+                                value={form.opn_balance?.toString() ?? ''}
+                                onChangeText={(v) => update({ opn_balance: parseFloat(v) || 0 })}
+                                placeholder="0.00" icon="account-balance-wallet"
+                            />
+                        </View>
+                        <View style={styles.flexOne}>
+                            <InputField
+                                bg="white" label="Credit Limit" type="decimal"
+                                value={form.credit_limit?.toString() ?? ''}
+                                onChangeText={(v) => update({ credit_limit: parseFloat(v) || null })}
+                                placeholder="0.00" icon="credit-card"
+                            />
+
+                        </View>
+
+                    </View>
+
+
+
+                    <View style={styles.balanceToggleRow}>
+                        <TouchableOpacity
+                            style={[styles.balanceToggleBtn, form.balance_type === 'receivable' && styles.balanceToggleBtnActiveDr]}
+                            onPress={() => update({ balance_type: 'receivable' })}
+                            activeOpacity={0.8}
+                        >
+                            <View style={[styles.balanceBadge, { backgroundColor: form.balance_type === 'receivable' ? colors.primary : colors.gray400 }]}>
+                                <Text style={[styles.balanceBadgeText, { color: form.balance_type === 'receivable' ? colors.backgroundDark : colors.white }]}>DR</Text>
+                            </View>
+                            <Text style={[styles.balanceToggleLabel, form.balance_type === 'receivable' && { color: colors.primary }]}>
+                                Receivable
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.balanceToggleBtn, form.balance_type === 'payable' && styles.balanceToggleBtnActiveCr]}
+                            onPress={() => update({ balance_type: 'payable' })}
+                            activeOpacity={0.8}
+                        >
+                            <View style={[styles.balanceBadge, { backgroundColor: form.balance_type === 'payable' ? colors.danger : colors.gray400 }]}>
+                                <Text style={[styles.balanceBadgeText, { color: colors.white }]}>CR</Text>
+                            </View>
+                            <Text style={[styles.balanceToggleLabel, form.balance_type === 'payable' && { color: colors.danger }]}>
+                                Payable
+                            </Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* ── Identity ── */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Identity</Text>
-
-                        <View style={styles.nameRow}>
-                            <View style={styles.flexOne}>
-                                <InputField
-                                    bg="white" label="Full Name" type="text"
-                                    value={form.name}
-                                    onChangeText={(v) => update({ name: v })}
-                                    placeholder="Enter name" icon="badge"
-                                />
-                            </View>
-                            <TouchableOpacity
-                                style={styles.phoneDirBtn}
-                                onPress={handleImportFromContacts}
-                                activeOpacity={0.75}
-                            >
-                                <Icon name="contacts" size={22} color={colors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                        <SelectionButton
-                            label="Contact Type"
-                            options={CONTACT_TYPES}
-                            value={form.type}
-                            onSelect={(key) => update({ type: key as ContactType })}
-                        />
-
-                    </View>
-
-                    {/* ── Initial Balance ── */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Initial Balance</Text>
-                        <View style={styles.row}>
-                            <View style={styles.flexOne}>
-                                <InputField
-                                    bg="white" label="Opening Balance" type="decimal"
-                                    value={form.opn_balance?.toString() ?? ''}
-                                    onChangeText={(v) => update({ opn_balance: parseFloat(v) || 0 })}
-                                    placeholder="0.00" icon="account-balance-wallet"
-                                />
-                            </View>
-                            <View style={styles.flexOne}>
-                                <InputField
-                                    bg="white" label="Credit Limit" type="decimal"
-                                    value={form.credit_limit?.toString() ?? ''}
-                                    onChangeText={(v) => update({ credit_limit: parseFloat(v) || null })}
-                                    placeholder="0.00" icon="credit-card"
-                                />
-
-                            </View>
-
-                        </View>
 
 
+                </View>
 
-                        <View style={styles.balanceToggleRow}>
-                            <TouchableOpacity
-                                style={[styles.balanceToggleBtn, form.balance_type === 'receivable' && styles.balanceToggleBtnActiveDr]}
-                                onPress={() => update({ balance_type: 'receivable' })}
-                                activeOpacity={0.8}
-                            >
-                                <View style={[styles.balanceBadge, { backgroundColor: form.balance_type === 'receivable' ? colors.primary : colors.gray400 }]}>
-                                    <Text style={[styles.balanceBadgeText, { color: form.balance_type === 'receivable' ? colors.backgroundDark : colors.white }]}>DR</Text>
-                                </View>
-                                <Text style={[styles.balanceToggleLabel, form.balance_type === 'receivable' && { color: colors.primary }]}>
-                                    Receivable
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles.balanceToggleBtn, form.balance_type === 'payable' && styles.balanceToggleBtnActiveCr]}
-                                onPress={() => update({ balance_type: 'payable' })}
-                                activeOpacity={0.8}
-                            >
-                                <View style={[styles.balanceBadge, { backgroundColor: form.balance_type === 'payable' ? colors.danger : colors.gray400 }]}>
-                                    <Text style={[styles.balanceBadgeText, { color: colors.white }]}>CR</Text>
-                                </View>
-                                <Text style={[styles.balanceToggleLabel, form.balance_type === 'payable' && { color: colors.danger }]}>
-                                    Payable
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-
-
-                    </View>
-
-                    {/* ── Connectivity ── */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Connectivity</Text>
-                        <InputField
-                            bg="white" label="Phone Number" type="phone"
-                            value={form.phone}
-                            onChangeText={(v) => update({ phone: v })}
-                            placeholder="+1 (000) 000-0000" icon="phone-iphone"
-                        />
-                        <InputField
-                            bg="white" label="Email Address" type="email"
-                            value={form.email}
-                            onChangeText={(v) => update({ email: v })}
-                            placeholder="email@domain.com" icon="mail"
-                        />
-                    </View>
-
-
-
-                    {/* ── Location ── */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Location / Category</Text>
-                        <AsyncDropdown
-                            url="/search-cities"
-                            searchParam="q"
-                            minSearchLength={2}
-                            creatable
-                            leadingIconName='location-city'
-                            label="Select City"
-                            placeholder="Search City"
-                            createLabel="Create City"
-                            inputBg={colors.backgroundLight}
-                            onSelect={(v) => update({ city: v as unknown as ContactCity })}
-                            onOpen={() => {
-                                Keyboard.dismiss();
-                                setAnyDropdownOpen(true);
-                                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-                            }}
-                            onClose={() => setAnyDropdownOpen(false)}
-                            value={null} />
-
-                        <AsyncDropdown
-                            url="/search-contact-categories"
-                            searchParam="q"
-                            minSearchLength={2}
-                            creatable
-                            leadingIconName='local-offer'
-                            label="Select Category"
-                            placeholder="Search Category"
-                            createLabel="Create Category"
-                            inputBg={colors.backgroundLight}
-                            onSelect={(v) => update({ category: v as unknown as ContactCategory })}
-                            onOpen={() => {
-                                Keyboard.dismiss();
-                                setAnyDropdownOpen(true);
-                                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-                            }}
-                            onClose={() => setAnyDropdownOpen(false)}
-                            value={null} />
-
-                    </View>
-
-                    <View style={{ height: 32 }} />
-                </ScrollView>
-
-                {/* ── Footer ── */}
-                <View style={styles.footer}>
-                    {footerError ? (
-                        <FooterError
-                            setFooterError={setFooterError}
-                            footerError={footerError}
-                        />
-
-                    ) : null}
-                    <SwipeButton
-                        title={loading ? 'Saving...' : 'Slide to Post'}
-                        thumbIconComponent={ThumbIcon}
-                        railBackgroundColor={colors.backgroundLight}
-                        railBorderColor={colors.primary}
-                        railFillBackgroundColor={colors.primary}
-                        thumbIconBackgroundColor={colors.primary}
-                        thumbIconBorderColor={colors.primary}
-                        titleColor={colors.primary}
-                        titleFontSize={13}
-                        height={52}
-                        swipeSuccessThreshold={70}
-                        disabled={loading}
-                        onSwipeSuccess={handleSubmit}
-                        forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                {/* ── Connectivity ── */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Connectivity</Text>
+                    <InputField
+                        bg="white" label="Phone Number" type="phone"
+                        value={form.phone}
+                        onChangeText={(v) => update({ phone: v })}
+                        placeholder="+1 (000) 000-0000" icon="phone-iphone"
+                    />
+                    <InputField
+                        bg="white" label="Email Address" type="email"
+                        value={form.email}
+                        onChangeText={(v) => update({ email: v })}
+                        placeholder="email@domain.com" icon="mail"
                     />
                 </View>
+
+
+
+                {/* ── Location ── */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Location / Category</Text>
+                    <AsyncDropdown
+                        url="/search-cities"
+                        searchParam="q"
+                        minSearchLength={2}
+                        creatable
+                        leadingIconName='location-city'
+                        label="Select City"
+                        placeholder="Search City"
+                        createLabel="Create City"
+                        inputBg={colors.backgroundLight}
+                        onSelect={(v) => update({ city: v as unknown as ContactCity })}
+                        onOpen={() => {
+                            Keyboard.dismiss();
+                            setAnyDropdownOpen(true);
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 300);
+                        }}
+                        onClose={() => setAnyDropdownOpen(false)}
+                        modalMode
+                        modalTitle="Select City"
+                        value={null} />
+
+                    <AsyncDropdown
+                        url="/search-contact-categories"
+                        searchParam="q"
+                        minSearchLength={2}
+                        creatable
+                        leadingIconName='local-offer'
+                        label="Select Category"
+                        placeholder="Search Category"
+                        createLabel="Create Category"
+                        inputBg={colors.backgroundLight}
+                        onSelect={(v) => update({ category: v as unknown as ContactCategory })}
+                        onOpen={() => {
+                            Keyboard.dismiss();
+                            setAnyDropdownOpen(true);
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 300);
+                        }}
+                        onClose={() => setAnyDropdownOpen(false)}
+                         modalMode
+                        modalTitle="Select Category"
+                        value={null} />
+
+                </View>
+
+                <View style={{ height: 32 }} />
+            </KeyboardAwareScrollView>
+
+            {/* ── Footer ── */}
+            <View style={styles.footer}>
+                {footerError ? (
+                    <FooterError
+                        setFooterError={setFooterError}
+                        footerError={footerError}
+                    />
+
+                ) : null}
+                <SwipeButton
+                    title={loading ? 'Saving...' : 'Slide to Post'}
+                    thumbIconComponent={ThumbIcon}
+                    railBackgroundColor={colors.backgroundLight}
+                    railBorderColor={colors.primary}
+                    railFillBackgroundColor={colors.primary}
+                    thumbIconBackgroundColor={colors.primary}
+                    thumbIconBorderColor={colors.primary}
+                    titleColor={colors.primary}
+                    titleFontSize={13}
+                    height={52}
+                    swipeSuccessThreshold={70}
+                    disabled={loading}
+                    onSwipeSuccess={handleSubmit}
+                    forceReset={(reset: () => void) => { resetSwipe = reset; }}
+                />
+            </View>
 
         </SafeAreaView>
     );
@@ -547,7 +554,7 @@ const styles = StyleSheet.create({
     pickerTitle: { fontSize: 17, fontWeight: '800', color: colors.gray900, letterSpacing: -0.3 },
     pickerCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.backgroundLight, alignItems: 'center', justifyContent: 'center' },
     pickerSearchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 12, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.backgroundLight, borderRadius: 12, gap: 8 },
-    pickerSearchIcon: { },
+    pickerSearchIcon: {},
     pickerSearchInput: { flex: 1, fontSize: 15, color: colors.gray900, padding: 0 },
     pickerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
     pickerLoadingText: { marginTop: 12, fontSize: 13, color: colors.gray500 },

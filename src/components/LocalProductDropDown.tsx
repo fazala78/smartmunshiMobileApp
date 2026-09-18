@@ -8,9 +8,10 @@ import React, {
 } from 'react';
 import {
   View, Text, TextInput, Image, StyleSheet,
-  TouchableOpacity, ViewStyle, ScrollView, Keyboard,
+  TouchableOpacity, ViewStyle, ScrollView, Keyboard, Modal, Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
 import { searchProducts } from '../services/storage';
 import useCurrency, { formatBalance } from '../utils/currency';
@@ -50,6 +51,8 @@ export interface ProductDropdownProps<T extends BaseRecord> {
   zIndex?:         number;
   disabled?:       boolean;
   style?:          ViewStyle;
+  modalMode?:      boolean;
+  modalTitle?:     string;
 }
 
 const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps<any>>(
@@ -66,20 +69,28 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
       zIndex         = 2000,
       disabled       = false,
       style,
+      modalMode      = false,
+      modalTitle,
     },
     ref
   ) {
     const [open, setOpen]           = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
     const [inputText, setInputText] = useState('');
     const [items, setItems]         = useState<ProductItem<any>[]>([]);
       const currency = useCurrency();
-    
+
 
     // ── removed: initialLoading, searchLoading, error, abortController ──
     // Local search is instant — no async, no loading states needed
 
-    const inputRef    = useRef<TextInput>(null);
+    const inputRef      = useRef<TextInput>(null);
+    const modalInputRef = useRef<TextInput>(null);
     const isMounted   = useRef(true);
+    // Holds a callback to run once our own modal has actually finished
+    // dismissing (iOS fires Modal's onDismiss after the close animation
+    // completes — Android has no such event, see handleModalDismiss below).
+    const pendingAfterDismissRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
       isMounted.current = true;
@@ -114,9 +125,45 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
     // ── Handlers ───────────────────────────────────────────────────────────
     const handleRowPress = (): void => {
       if (disabled) return;
+      if (modalMode) { handleOpenModal(); return; }
       if (open) { inputRef.current?.focus(); return; }
       setOpen(true);
       setTimeout(() => inputRef.current?.focus(), 50);
+    };
+
+    const handleOpenModal = (): void => {
+      if (disabled) return;
+      loadProducts(inputText);
+      setModalVisible(true);
+    };
+
+    const handleCloseModal = (): void => {
+      setModalVisible(false);
+      if (autoReset) {
+        setInputText('');
+        loadProducts('');
+      }
+    };
+
+    // Fires once the modal's own close animation has actually finished
+    // (iOS only). Runs whatever selection action was waiting on it.
+    const handleModalDismiss = (): void => {
+      const run = pendingAfterDismissRef.current;
+      pendingAfterDismissRef.current = null;
+      run?.();
+    };
+
+    // Closes the modal, then runs `action` right after it is actually gone —
+    // on iOS that's driven by Modal's onDismiss event (exact, no guessing);
+    // Android's Modal has no such event but doesn't share iOS's
+    // view-controller-stacking issue, so a short fixed delay is enough.
+    const dismissModalThen = (action: () => void): void => {
+      setModalVisible(false);
+      if (Platform.OS === 'ios') {
+        pendingAfterDismissRef.current = action;
+      } else {
+        setTimeout(action, 50);
+      }
     };
 
     const handleFocus = (): void => {
@@ -135,6 +182,21 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
 
     const handleSelect = (item: ProductItem<any>): void => {
       Keyboard.dismiss();
+      if (modalMode) {
+        // Close our own modal first and let it actually finish dismissing
+        // before the parent opens another Modal (e.g. an "add to cart" one) —
+        // two RN Modals toggling visible at the same tick causes the second
+        // one to fail to present.
+        dismissModalThen(() => {
+          onSelect(item._raw);
+          if (autoReset) {
+            setInputText('');
+            loadProducts('');
+            setOpen(false);
+          }
+        });
+        return;
+      }
       onSelect(item._raw);
       if (autoReset) {
         setTimeout(() => handleReset(), 50);
@@ -147,6 +209,7 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
       setInputText('');
       loadProducts('');
       setOpen(false);
+      setModalVisible(false);
       inputRef.current?.blur();
     };
 
@@ -196,7 +259,7 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
 
       if (items.length === 0 && inputText.length > 0) {
         return (
-          <View style={styles.stateBox}>
+          <View style={[styles.stateBox, modalMode && styles.stateBoxModal]}>
             <Icon name="inventory-2" size={30} color={colors.gray300} />
             <Text style={styles.stateText}>No results for "{inputText}"</Text>
           </View>
@@ -205,7 +268,7 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
 
       if (items.length === 0) {
         return (
-          <View style={styles.stateBox}>
+          <View style={[styles.stateBox, modalMode && styles.stateBoxModal]}>
             <Icon name="inventory-2" size={30} color={colors.gray300} />
             <Text style={styles.stateText}>No products available</Text>
           </View>
@@ -214,7 +277,7 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
 
       return (
         <ScrollView
-          style={styles.list}
+          style={[styles.list, modalMode && styles.listModal]}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
         >
@@ -241,23 +304,31 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
           >
             <Icon name="search" size={20} color={open ? colors.primary : colors.gray400} />
 
-            <TextInput
-              ref={inputRef}
-              style={styles.textInput}
-              value={inputText}
-              onChangeText={handleChangeText}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              placeholder={placeholder}
-              placeholderTextColor={colors.gray400}
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-              editable={!disabled}
-            />
+            {modalMode ? (
+              <Text style={styles.placeholderText} numberOfLines={1}>
+                {placeholder}
+              </Text>
+            ) : (
+              <TextInput
+                ref={inputRef}
+                style={styles.textInput}
+                value={inputText}
+                onChangeText={handleChangeText}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                placeholder={placeholder}
+                placeholderTextColor={colors.gray400}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                editable={!disabled}
+              />
+            )}
 
             <View style={styles.trailingArea}>
-              {inputText.length > 0 ? (
+              {modalMode ? (
+                <Icon name="chevron-right" size={20} color={colors.gray400} />
+              ) : inputText.length > 0 ? (
                 <TouchableOpacity
                   onPress={handleClearInput}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -288,7 +359,54 @@ const LocalProductDropDown = forwardRef<ProductDropdownRef, ProductDropdownProps
           )}
         </View>
 
-        {open && <View style={styles.dropdown}>{renderDropdownBody()}</View>}
+        {!modalMode && open && <View style={styles.dropdown}>{renderDropdownBody()}</View>}
+
+        {modalMode && (
+          <Modal
+            visible={modalVisible}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={handleCloseModal}
+            onDismiss={handleModalDismiss}
+          >
+            <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right', 'bottom']}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalHeaderTitle}>{modalTitle ?? label}</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={handleCloseModal}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="close" size={20} color={colors.gray600} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalSearchRow}>
+                <Icon name="search" size={20} color={colors.gray400} />
+                <TextInput
+                  ref={modalInputRef}
+                  style={styles.modalSearchInput}
+                  value={inputText}
+                  onChangeText={handleChangeText}
+                  placeholder={placeholder}
+                  placeholderTextColor={colors.gray400}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                />
+                {inputText.length > 0 && (
+                  <TouchableOpacity onPress={handleClearInput} activeOpacity={0.7}>
+                    <Icon name="cancel" size={18} color={colors.gray400} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.modalBody}>
+                {renderDropdownBody()}
+              </View>
+            </SafeAreaView>
+          </Modal>
+        )}
       </View>
     );
   }
@@ -316,6 +434,9 @@ const styles = StyleSheet.create({
     flex: 1, fontSize: typography.body.fontSize,
     color: colors.gray900, paddingVertical: 2,
   },
+  placeholderText: {
+    flex: 1, fontSize: typography.body.fontSize, color: colors.gray400,
+  },
   trailingArea: { flexDirection: 'row', alignItems: 'center' },
   barcodeBtn: {
     backgroundColor: colors.primary, padding: 12, borderRadius: 8,
@@ -327,7 +448,32 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.10, shadowRadius: 12, elevation: 7, overflow: 'hidden',
   },
+
+  // ── Modal picker ─────────────────────────────────────────────────────────
+  modalContainer: { flex: 1, backgroundColor: colors.white },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: colors.gray200,
+  },
+  modalHeaderTitle: { fontSize: 17, fontWeight: '700', color: colors.gray900 },
+  modalCloseBtn: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: colors.backgroundLight,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalSearchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginTop: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1.5, borderColor: colors.gray200, backgroundColor: colors.backgroundLight,
+  },
+  modalSearchInput: {
+    flex: 1, fontSize: typography.body.fontSize, color: colors.gray900, paddingVertical: 0,
+  },
+  modalBody: { flex: 1, marginTop: 8 },
+
   list: { maxHeight: 340 },
+  listModal: { flex: 1, maxHeight: undefined },
   separator: { height: 1, backgroundColor: colors.gray200, marginHorizontal: 12 },
   listItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -343,6 +489,7 @@ const styles = StyleSheet.create({
     color: colors.gray700, minWidth: 54, textAlign: 'right',
   },
   stateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28, gap: 8 },
+  stateBoxModal: { flex: 1, paddingVertical: 0 },
   stateText: { fontSize: 13, color: colors.gray400, textAlign: 'center' },
   errorText: { fontSize: 13, color: colors.danger, textAlign: 'center', paddingHorizontal: 16 },
   retryBtn: {

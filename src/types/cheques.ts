@@ -56,3 +56,13 @@ export type ChequeStatus =
   | 'issued'
   | 'clearing'
   | 'handed_over';
+
+/** One row from GET /contact-cheque-list/{contact_id}/{status}. */
+export interface ContactChequeListItem {
+  id: number;
+  cheque_number: string;
+  due_date: string;
+  amount: string | number;
+  paid_amount: number;
+  balance: number;
+}

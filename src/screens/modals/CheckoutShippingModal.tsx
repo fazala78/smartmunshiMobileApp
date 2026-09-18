@@ -93,6 +93,8 @@ export const CheckoutShippingModal: React.FC<ShippingModalProps> = ({
                   }
                   labelResolver={(c) => c.name}
                   subLabelResolver={(c) => c.phone}
+                  modalMode
+                  modalTitle="Select Shipper"
                 />
 
 

@@ -16,7 +16,10 @@ import {
     ViewStyle,
     ScrollView,
     Keyboard,
+    Modal,
+    Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../services/api';
 import { colors, typography } from '../theme';
@@ -80,6 +83,8 @@ export interface AsyncDropdownProps<T extends BaseRecord> {
     disabled?:         boolean;
     style?:            ViewStyle;
     inputBg:           string;
+    modalMode?:        boolean;
+    modalTitle?:       string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,11 +114,14 @@ function AsyncDropdownInner<T extends BaseRecord>(
         disabled        = false,
         style,
         inputBg,
+        modalMode       = false,
+        modalTitle,
     }: AsyncDropdownProps<T>,
     ref: React.ForwardedRef<AsyncDropdownRef>
 ) {
     // ── State ──────────────────────────────────────────────────────────────────
     const [open, setOpen]                     = useState<boolean>(false);
+    const [modalVisible, setModalVisible]     = useState<boolean>(false);
     const [inputText, setInputText]           = useState<string>('');
     const [selected, setSelected]             = useState<T | null>(null);
     const [items, setItems]                   = useState<DropdownItem<T>[]>([]);
@@ -128,11 +136,16 @@ function AsyncDropdownInner<T extends BaseRecord>(
     const selectedRef         = useRef<T | null>(null);
     const inputTextRef        = useRef<string>('');      // mirrors inputText for closures
     const inputRef            = useRef<TextInput>(null);
+    const modalInputRef       = useRef<TextInput>(null);
     const debounceTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
     const abortControllerRef  = useRef<AbortController | null>(null);
     const isMounted           = useRef<boolean>(true);
     const isCreatingRef       = useRef<boolean>(false);  // true while create row tap is in flight
     const willKeepOpenRef    = useRef<boolean>(false);  // true when onOpen-triggered dismiss should not close dropdown
+    // Holds a callback to run once our own modal has actually finished
+    // dismissing (iOS fires Modal's onDismiss after the close animation
+    // completes — Android has no such event, see handleModalDismiss below).
+    const pendingAfterDismissRef = useRef<(() => void) | null>(null);
 
     // Keep refs in sync with latest values on every render
     labelResolverRef.current    = labelResolver;
@@ -280,7 +293,53 @@ function AsyncDropdownInner<T extends BaseRecord>(
         );
     };
 
+    const handleOpenModal = (): void => {
+        if (disabled) return;
+        setModalVisible(true);
+        onOpen?.();
+        if (items.length === 0 && !initialLoading && inputTextRef.current.length === 0) {
+            fetchRecords('', false);
+        }
+    };
+
+    const handleCloseModal = (): void => {
+        setModalVisible(false);
+        onClose?.();
+        if (!selectedRef.current) setInputText('');
+    };
+
+    // Fires once the modal's own close animation has actually finished
+    // (iOS only). Runs whatever selection/create/clear action was waiting on it.
+    const handleModalDismiss = (): void => {
+        const run = pendingAfterDismissRef.current;
+        pendingAfterDismissRef.current = null;
+        run?.();
+    };
+
+    // Closes the modal, then runs `action` right after it is actually gone —
+    // on iOS that's driven by Modal's onDismiss event (exact, no guessing);
+    // Android's Modal has no such event but doesn't share iOS's
+    // view-controller-stacking issue, so a short fixed delay is enough.
+    const dismissModalThen = (action: () => void): void => {
+        setModalVisible(false);
+        if (Platform.OS === 'ios') {
+            pendingAfterDismissRef.current = action;
+        } else {
+            setTimeout(action, 50);
+        }
+    };
+
     const handleSelect = (item: DropdownItem<T>): void => {
+        if (modalMode) {
+            dismissModalThen(() => {
+                setSelected(item._raw);
+                setInputText('');
+                inputRef.current?.blur();
+                onSelect(item._raw);
+                onClose?.();
+            });
+            return;
+        }
         setSelected(item._raw);
         setInputText('');
         setOpen(false);
@@ -290,6 +349,17 @@ function AsyncDropdownInner<T extends BaseRecord>(
     };
 
     const handleClear = (): void => {
+        if (modalMode && modalVisible) {
+            dismissModalThen(() => {
+                setSelected(null);
+                setInputText('');
+                inputRef.current?.blur();
+                fetchRecords('', false);
+                onSelect(null);
+                onClose?.();
+            });
+            return;
+        }
         setSelected(null);
         setInputText('');
         setOpen(false);
@@ -309,14 +379,22 @@ function AsyncDropdownInner<T extends BaseRecord>(
 
         const newRecord = { name } as unknown as T;
 
-        setSelected(newRecord);
-        setInputText('');
-        setOpen(false);
-        inputRef.current?.blur();
+        const finalize = () => {
+            setSelected(newRecord);
+            setInputText('');
+            inputRef.current?.blur();
+            onSelect(newRecord);
+            onCreate?.({ name });
+            onClose?.();
+        };
 
-        onSelect(newRecord);
-        onCreate?.({ name });
-        onClose?.();
+        if (modalMode) {
+            dismissModalThen(finalize);
+            return;
+        }
+
+        setOpen(false);
+        finalize();
     };
 
     const handleBlur = (): void => {
@@ -416,7 +494,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
     const renderDropdownBody = () => {
         if (initialLoading) {
             return (
-                <View style={styles.stateBox}>
+                <View style={[styles.stateBox, modalMode && styles.stateBoxModal]}>
                     <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.stateText}>Loading…</Text>
                 </View>
@@ -425,7 +503,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
 
         if (error) {
             return (
-                <View style={styles.stateBox}>
+                <View style={[styles.stateBox, modalMode && styles.stateBoxModal]}>
                     <Icon name="error-outline" size={22} color={colors.danger} />
                     <Text style={styles.errorText}>{error}</Text>
                     <TouchableOpacity
@@ -443,7 +521,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
 
         if (isEmpty && !showCreateRow) {
             return (
-                <View style={styles.stateBox}>
+                <View style={[styles.stateBox, modalMode && styles.stateBoxModal]}>
                     <Icon name="search-off" size={30} color={colors.gray300} />
                     <Text style={styles.stateText}>
                         {inputText
@@ -458,7 +536,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
             <>
                 {!isEmpty && (
                     <ScrollView
-                        style={styles.list}
+                        style={[styles.list, modalMode && styles.listModal]}
                         keyboardShouldPersistTaps="handled"
                         nestedScrollEnabled
                     >
@@ -489,6 +567,7 @@ function AsyncDropdownInner<T extends BaseRecord>(
             <TouchableOpacity
                 style={styles.chipArea}
                 onPress={() => {
+                    if (modalMode) { handleOpenModal(); return; }
                     setSelected(null);
                     setInputText('');
                     onSelect(null);
@@ -523,6 +602,10 @@ function AsyncDropdownInner<T extends BaseRecord>(
                                 </View>
                             )}
                         </View>
+                    ) : modalMode ? (
+                        <Text style={styles.placeholderText} numberOfLines={1}>
+                            {placeholder}
+                        </Text>
                     ) : (
                         <TextInput
                             ref={inputRef}
@@ -541,7 +624,19 @@ function AsyncDropdownInner<T extends BaseRecord>(
                     )}
 
                     <View style={styles.trailingArea}>
-                        {searchLoading && open ? (
+                        {modalMode ? (
+                            selected ? (
+                                <TouchableOpacity
+                                    onPress={handleClear}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    disabled={disabled}
+                                >
+                                    <Icon name="close" size={18} color={colors.gray400} />
+                                </TouchableOpacity>
+                            ) : (
+                                <Icon name="chevron-right" size={20} color={colors.gray400} />
+                            )
+                        ) : searchLoading && open ? (
                             <ActivityIndicator size="small" color={colors.primary} />
                         ) : selected ? (
                             <TouchableOpacity
@@ -563,7 +658,63 @@ function AsyncDropdownInner<T extends BaseRecord>(
             </TouchableOpacity>
 
             {/* Suggestion list */}
-            {open && <View style={styles.dropdown}>{renderDropdownBody()}</View>}
+            {!modalMode && open && <View style={styles.dropdown}>{renderDropdownBody()}</View>}
+
+            {modalMode && (
+                <Modal
+                    visible={modalVisible}
+                    animationType="slide"
+                    presentationStyle="pageSheet"
+                    onRequestClose={handleCloseModal}
+                    onDismiss={handleModalDismiss}
+                >
+                    <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right', 'bottom']}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalHeaderTitle}>{modalTitle ?? label}</Text>
+                            <TouchableOpacity
+                                style={styles.modalCloseBtn}
+                                onPress={handleCloseModal}
+                                activeOpacity={0.7}
+                            >
+                                <Icon name="close" size={20} color={colors.gray600} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.modalSearchRow}>
+                            <Icon name="search" size={20} color={colors.gray400} />
+                            <TextInput
+                                ref={modalInputRef}
+                                style={styles.modalSearchInput}
+                                value={inputText}
+                                onChangeText={handleChangeText}
+                                placeholder={placeholder}
+                                placeholderTextColor={colors.gray400}
+                                autoCorrect={false}
+                                autoCapitalize="none"
+                                returnKeyType="search"
+                            />
+                            {searchLoading ? (
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            ) : inputText.length > 0 ? (
+                                <TouchableOpacity onPress={() => handleChangeText('')} activeOpacity={0.7}>
+                                    <Icon name="cancel" size={18} color={colors.gray400} />
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+
+                        {selected && (
+                            <TouchableOpacity style={styles.modalClearRow} onPress={handleClear} activeOpacity={0.7}>
+                                <Icon name="close" size={16} color={colors.danger} />
+                                <Text style={styles.modalClearText}>Clear selection</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <View style={styles.modalBody}>
+                            {renderDropdownBody()}
+                        </View>
+                    </SafeAreaView>
+                </Modal>
+            )}
         </View>
     );
 }
@@ -624,6 +775,11 @@ const styles = StyleSheet.create({
         color: colors.gray900,
         paddingVertical: 0,
     },
+    placeholderText: {
+        flex: 1,
+        fontSize: typography.body.fontSize,
+        color: colors.gray400,
+    },
 
     trailingArea: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 
@@ -642,7 +798,57 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
 
+    // ── Modal picker ───────────────────────────────────────────────────────
+    modalContainer: { flex: 1, backgroundColor: colors.white },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.gray200,
+    },
+    modalHeaderTitle: { fontSize: 17, fontWeight: '700', color: colors.gray900 },
+    modalCloseBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: colors.backgroundLight,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalSearchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: colors.gray200,
+        backgroundColor: colors.backgroundLight,
+    },
+    modalSearchInput: {
+        flex: 1,
+        fontSize: typography.body.fontSize,
+        color: colors.gray900,
+        paddingVertical: 0,
+    },
+    modalClearRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginHorizontal: 16,
+        marginTop: 10,
+    },
+    modalClearText: { fontSize: 13, fontWeight: '600', color: colors.danger },
+    modalBody: { flex: 1, marginTop: 8 },
+
     list:      { maxHeight: 260 },
+    listModal: { flex: 1, maxHeight: undefined },
     separator: { height: 1, backgroundColor: colors.gray200, marginHorizontal: 12 },
 
     listItem: {
@@ -703,6 +909,7 @@ const styles = StyleSheet.create({
         paddingVertical: 28,
         gap: 8,
     },
+    stateBoxModal: { flex: 1, paddingVertical: 0 },
     stateText: { fontSize: 13, color: colors.gray400, textAlign: 'center' },
     errorText: {
         fontSize: 13,

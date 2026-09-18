@@ -7,7 +7,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { colors } from '../theme';
-import useCurrency from '../utils/currency';
+import useCurrency, { formatBalance } from '../utils/currency';
 import DatePicker from '../components/DatePicker';
 import Filter from '../components/Filter';
 import Header from '../components/ui/Header';
@@ -115,6 +115,8 @@ const BankPaymentListScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const transactions: PaymentListing[] =
         data?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
+
+    const totalAmount = transactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
     // ── Quick filter tabs ─────────────────────────────────────────────────────
     const quickFilters = useMemo<any[]>(() => [
@@ -259,15 +261,21 @@ const BankPaymentListScreen: React.FC<Props> = ({ navigation, route }) => {
 
             <DatePicker onDateChange={(date) => setFilters((p: any) => ({ ...p, date }))} />
 
-            {/* List header */}
-            <View style={styles.listHeaderRow}>
-                <Text style={styles.listHeaderText}>Results</Text>
-                {transactions.length > 0 && (
-                    <View style={styles.countBadge}>
-                        <Text style={styles.countText}>{transactions.length}</Text>
+            {/* Totals — boxed cards, matching JournalScreen's total-debit/total-credit design */}
+            {transactions.length > 0 && (
+                <View style={styles.totalsRow}>
+                    <View style={[styles.totalBox, styles.totalBoxEntries]}>
+                        <Text style={styles.totalBoxLabel}>Total Entries</Text>
+                        <Text style={styles.totalBoxValue}>{transactions.length}</Text>
                     </View>
-                )}
-            </View>
+                    <View style={[styles.totalBox, styles.totalBoxAmount]}>
+                        <Text style={[styles.totalBoxLabel, styles.totalBoxLabelAmount]}>Total Amount</Text>
+                        <Text style={styles.totalBoxValueAmount} numberOfLines={1}>
+                            {formatBalance(totalAmount, currency ?? undefined)}
+                        </Text>
+                    </View>
+                </View>
+            )}
 
             {/* States */}
             {isLoading && <Loading />}
@@ -350,10 +358,14 @@ export default BankPaymentListScreen;
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container:        { flex: 1, backgroundColor: colors.white },
-    listHeaderRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
-    listHeaderText:   { fontSize: 11, fontWeight: '800', color: '#61896f', letterSpacing: 2, textTransform: 'uppercase' },
-    countBadge:       { backgroundColor: colors.primaryMuted, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-    countText:        { fontSize: 11, fontWeight: '800', color: colors.primary },
+    totalsRow:            { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
+    totalBox:             { flex: 1, borderRadius: 16, padding: 14, borderWidth: 1 },
+    totalBoxEntries:      { backgroundColor: colors.backgroundLight, borderColor: colors.gray200 },
+    totalBoxAmount:       { backgroundColor: colors.warningLight, borderColor: 'rgba(245,158,11,0.35)' },
+    totalBoxLabel:        { fontSize: 10, fontWeight: '700', color: '#61896f', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+    totalBoxLabelAmount:  { color: colors.warningDark },
+    totalBoxValue:        { fontSize: 20, fontWeight: '900', color: colors.gray900, letterSpacing: -0.5 },
+    totalBoxValueAmount:  { fontSize: 20, fontWeight: '900', color: colors.warningDark, letterSpacing: -0.5 },
     flatList:         { flex: 1 },
     listContent:      { paddingHorizontal: 12, paddingBottom: 40, gap: 10 },
     filterSection:    { marginBottom: 15 },

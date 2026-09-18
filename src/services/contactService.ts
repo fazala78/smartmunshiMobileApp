@@ -10,6 +10,7 @@ import {
   ContactTransactionTypes,
   ContactForm,
   ContactCategory,
+  ChequeSummaryItem,
 } from '../types/contact';
 /**
  * Fetch contacts with filters and pagination
@@ -496,6 +497,25 @@ export const createSyncContact = async (payload: any): Promise<any> => {
 export const getContactBallance = async (id: number): Promise<string> => {
   try {
     const response = await api.get(`/contact-balance/${id}`);
+    return response.data;
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+/**
+ * Get the cheque summary cards for a contact (total/pending/partial cheques
+ * for clients & walk-ins, or issued/installment/handed-over for vendors,
+ * plus balance excl. cheques and current balance) — card set and labels are
+ * decided server-side based on the contact's type.
+ * @param id - Contact ID
+ * @returns Promise with the list of summary cards
+ */
+export const getContactChequeSummary = async (
+  id: number,
+): Promise<ChequeSummaryItem[]> => {
+  try {
+    const response = await api.get(`/contact-cheque-summary/${id}`);
     return response.data;
   } catch (error: any) {
     throw error;

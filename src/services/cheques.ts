@@ -1,4 +1,4 @@
-import { Cheque, ChequeStatusSummary, InstallmentData } from '../types/cheques';
+import { Cheque, ChequeStatusSummary, ContactChequeListItem, InstallmentData } from '../types/cheques';
 import { toDateString } from '../utils/stringUtils';
 import api from './api';
 
@@ -99,6 +99,53 @@ export const updateCheque = async (
   } catch (error: any) {
     console.error('updateCheque error:', error);
     throw error;
+  }
+};
+
+/**
+ * Get the cheque list backing one of the contact-ledger cheque-summary cards
+ * (e.g. the "Pending Cheques" or "Partial Cheques" card).
+ * @param contactId - Contact ID
+ * @param status - Route status segment, e.g. "pending" | "partial"
+ */
+export const getContactChequeList = async (
+  contactId: number,
+  status: string,
+): Promise<ContactChequeListItem[]> => {
+  try {
+    const response = await api.get<{ data: ContactChequeListItem[] }>(
+      `/contact-cheque-list/${contactId}/${status}`,
+    );
+    return response.data.data;
+  } catch (error: any) {
+    throw (
+      error.response?.data || {
+        message: error.message || 'Failed to get cheque list',
+      }
+    );
+  }
+};
+
+/**
+ * Get the cheque list backing one of the account-ledger cheque-summary cards.
+ * @param accountId - Bank account ID
+ * @param status - Route status segment (raw `cheque_status`, e.g. "unsettled" | "partial")
+ */
+export const getAccountChequeList = async (
+  accountId: number,
+  status: string,
+): Promise<ContactChequeListItem[]> => {
+  try {
+    const response = await api.get<{ data: ContactChequeListItem[] }>(
+      `/account-cheque-list/${accountId}/${status}`,
+    );
+    return response.data.data;
+  } catch (error: any) {
+    throw (
+      error.response?.data || {
+        message: error.message || 'Failed to get cheque list',
+      }
+    );
   }
 };
 

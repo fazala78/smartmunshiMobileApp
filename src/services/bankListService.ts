@@ -1,5 +1,6 @@
 import { AccountTransactionPaginatedResponse, BankAccountPaginatedResponse, CreateBankAccountPayload } from '../types/bankList';
 import { SuccessResponse } from '../screens/modals/SuccessModal';
+import { ChequeSummaryItem } from '../types/contact';
 import api from './api';
 
 export const fetchBanks = async (
@@ -81,6 +82,17 @@ export const getAccountTransactions = async (
         hasPreviousPage: meta.current_page > 1,
       },
     };
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+export const getAccountChequeSummary = async (
+  accountId: number,
+): Promise<ChequeSummaryItem[]> => {
+  try {
+    const response = await api.get(`/account-cheque-summary/${accountId}`);
+    return response.data;
   } catch (error: any) {
     throw error;
   }

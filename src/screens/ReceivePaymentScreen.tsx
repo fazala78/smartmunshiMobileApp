@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet,
+    View, Text, StyleSheet,
     ActivityIndicator,
     Modal,
     Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
@@ -61,7 +62,7 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null);
     const { play } = useSuccessSound();
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
     let resetSwipe: (() => void) | null = null;
 
     const update = (fields: Partial<PaymentPayload>) =>
@@ -161,13 +162,15 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
 
             <Header title="Receive Payment" navigation={navigation} />
 
-            <ScrollView
+            <KeyboardAwareScrollView
                 ref={scrollViewRef}
                 style={styles.body}
                 contentContainerStyle={styles.bodyContent}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
-                automaticallyAdjustKeyboardInsets
+                enableOnAndroid
+                extraScrollHeight={20}
+                enableResetScrollToCoords={false}
                 showsVerticalScrollIndicator={false}>
                 {/* Contact */}
                 <View style={styles.contactCard}>
@@ -179,8 +182,8 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
                         showLabel={false}
                         inputBg="transparent"
                         value={payload.contact as unknown as Contact}  // ← shows chip if set
-                        creatable
-                        createLabel="Create Contact"
+                        creatable={false}
+                        modalMode
                         placeholder="Search or pick a customer…"
                         onSelect={(v) => update({ contact: v as unknown as Contact })}
                         labelResolver={(c) => c.name}
@@ -190,12 +193,12 @@ const ReceivePaymentScreen: React.FC<Props> = ({ navigation }) => {
 
                 <PaymentMethods update={update} payload={payload} methods={METHODS}
                 onRemarksFocus={() =>
-                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 100)
                         }
                          />
 
-                
-            </ScrollView>
+
+            </KeyboardAwareScrollView>
 
             <View style={styles.footer}>
                 {footerError ? (

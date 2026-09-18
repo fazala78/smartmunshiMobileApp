@@ -272,6 +272,8 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
             autoReset
             showBarcodeBtn
             onSelect={handleProductSelect}
+            modalMode={true}
+            modalTitle="Select Product"
           />
         ) : searchingType === 'none' ? (
           <View style={styles.inlineAddRow}>
@@ -302,6 +304,8 @@ export default function Shopping<T extends Inventory | LotFormData | StockTransf
             autoReset={true}
             zIndex={3000}
             onSelect={handleProductSelect}
+            modalMode={true}
+            modalTitle="Select Product"
           />
         )}
       </View>

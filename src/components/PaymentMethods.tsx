@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import { PaymentPayload, Account, Cheque } from '../types/payments';
 import { Bank } from '../types/contact';
 import AsyncDropdown from './AsyncDropdown';
+import LocalDropdown from './LocallDropdown';
 import SelectionButton from './ui/SelectionButton';
 import InputField from './ui/InputField';
 import DatePickerField from './DatePickerField';
@@ -45,6 +46,8 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
       inputBg={colors.backgroundLight}
       onSelect={(v) => update({ account: v as unknown as Account })}
       value={payload?.account as Account}
+      modalMode
+      modalTitle="Select Bank Account"
     />
   );
 
@@ -64,7 +67,6 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
   };
 
   // ── Derived flags ─────────────────────────────────────────────────────────
-  const isBankMethod = payload.type === 'online' || payload.type === 'account_cheque';
   const isChequeMethod = payload.type === 'cheque' || payload.type === 'account_cheque';
   const isForwardCheque = payload.type === 'received_cheques' || payload.type === 'client_received_cheques';
   const isShowSlip = payload.type === 'online' || payload.type === 'bank_deposit' || payload.type === 'bank_withdraw' || payload.type === 'client_received_cheques';
@@ -137,16 +139,17 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
       {/* Credit fields */}
       {payload.type === 'credit' && (
         <View style={styles.conditionalFields}>
-          <AsyncDropdown
-            url="/search-contact"
-            searchParam="q"
-            minSearchLength={2}
+          <LocalDropdown<Contact>
             creatable={false}
             label="Select Customer"
             leadingIconName="person-search"
             inputBg={colors.backgroundLight}
-            onSelect={(v) => update({ contact: v as unknown  as Contact })}
+            onSelect={(v) => update({ contact: v as unknown as Contact })}
             value={payload.contact as Contact}
+            labelResolver={(c) => c.name}
+            modalMode
+            modalTitle="Select Contact"
+            subLabelResolver={(c) => c.phone}
           />
         </View>
       )}
@@ -179,6 +182,8 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
                   inputBg={colors.backgroundLight}
                   onSelect={(v) => update({ bank: v as unknown as Bank })}
                   value={payload.bank as Account}
+                  modalMode
+                  modalTitle="Select Bank"
                 />
               </View>
             )}
@@ -211,6 +216,8 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
             inputBg={colors.backgroundLight}
             onSelect={(v) => handleChequeSelect(v as unknown as Cheque)}
             value={payload.cheque as Cheque}
+            modalMode
+            modalTitle="Select Client Cheque"
           />
           {payload.cheque && (
             <View style={styles.chequeInfoCard}>
@@ -260,7 +267,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ payload, update, method
         numberOfLines={3}
         onFocus={onRemarksFocus}
       />
-       <View style={{ height: 20 }} />
+      <View style={{ height: 20 }} />
     </>
   );
 };

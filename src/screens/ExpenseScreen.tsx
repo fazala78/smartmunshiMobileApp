@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet, TouchableOpacity,
+    View, Text, StyleSheet, TouchableOpacity,
     ActivityIndicator, Animated, Modal,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SwipeButton from 'rn-swipe-button';
@@ -58,7 +59,7 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
     const [createdSlip, setCreatedSlip] = useState<ExpenseSlip | null>(null);
     const [receiptModalVisible, setReceiptModalVisible] = useState(false);
     const [footerError, setFooterError] = useState<string | null>(null); // replaces toast
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
     const toastAnim = useRef(new Animated.Value(0)).current;
     const {play} = useSuccessSound();
     let resetSwipe: (() => void) | null = null;
@@ -158,13 +159,15 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
 
             <Header title="Pay Expense" navigation={navigation} />
 
-                <ScrollView
+                <KeyboardAwareScrollView
                     ref={scrollViewRef}
                     style={styles.body}
                     contentContainerStyle={styles.bodyContent}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
-                    automaticallyAdjustKeyboardInsets
+                    enableOnAndroid
+                    extraScrollHeight={20}
+                    enableResetScrollToCoords={false}
                     showsVerticalScrollIndicator={false}>
 
                     {/* Toast */}
@@ -190,12 +193,12 @@ const ExpenseScreen: React.FC<Props> = ({ navigation }) => {
                         payload={payload}
                         methods={METHODS}
                         onRemarksFocus={() =>
-                            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100)
+                            setTimeout(() => scrollViewRef.current?.scrollToEnd(true), 100)
                         }
                     />
 
-                   
-                </ScrollView>
+
+                </KeyboardAwareScrollView>
 
                 <View style={styles.footer}>
                     {footerError ? (

@@ -273,6 +273,8 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
                       value={payload.contact}
                       creatable
                       createLabel="Create contact"
+                      modalMode
+                      modalTitle="Select Contact"
                       onSelect={(customer) => {
                         setPayload((prev) => {
                           if (!prev) return prev;

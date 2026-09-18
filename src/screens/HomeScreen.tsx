@@ -21,6 +21,8 @@ import { RootStackParamList } from '../types/navigation';
 import BottomNavigation from '../components/BottomNavigation';
 import { colors } from '../theme';
 import { getTotalCash } from '../services/transactionService';
+import { fetchBanks } from '../services/bankListService';
+import { BankAccount } from '../types/bankList';
 import { useQuery } from '@tanstack/react-query';
 import { formatBalance } from '../utils/currency';
 
@@ -77,7 +79,23 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [showBranchModal, setShowBranchModal] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
   const spinValue = useRef(new Animated.Value(0)).current;
+
+  // ── Bank accounts (for Bank Balance summary + list) ───────────────────────
+  const { data: banksData, isLoading: isBanksLoading, refetch: refetchBanks } = useQuery({
+    queryKey: ['banks-summary'],
+    queryFn: () => fetchBanks({}),
+    staleTime: 30 * 1000,
+  });
+
+  const bankAccounts: BankAccount[] = banksData?.data ?? [];
+  const totalBankBalance = bankAccounts.reduce((sum, bank) => sum + (bank.balance || 0), 0);
+
+  const handleBankPress = (account: BankAccount) => {
+    setShowBankModal(false);
+    navigation.navigate('AccountLedger', { account });
+  };
 
   // ── load user data from AsyncStorage ──
   const loadUserData = useCallback(async () => {
@@ -152,7 +170,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     ).start();
 
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchBanks()]);
     } finally {
       spinValue.stopAnimation();
       spinValue.setValue(0);
@@ -261,6 +279,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 )}
               </View>
             )}
+
+            <View style={styles.cashDivider} />
+
+            <TouchableOpacity
+              style={styles.bankBalanceRow}
+              onPress={() => setShowBankModal(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.bankBalanceLeft}>
+                <View style={styles.bankIconCircle}>
+                  <Icon name="account-balance" size={16} color={colors.warningDark} />
+                </View>
+                <Text style={styles.bankBalanceLabel}>Banks Balance</Text>
+              </View>
+              <View style={styles.bankBalanceRight}>
+                {isBanksLoading ? (
+                  <ActivityIndicator size="small" color={colors.warningDark} />
+                ) : (
+                  <Text style={styles.bankBalanceAmount}>
+                    {formatBalance(totalBankBalance, data?.currency)}
+                  </Text>
+                )}
+                <Icon name="chevron-right" size={20} color={colors.gray400} />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -362,6 +405,66 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* ── Bank Balances Modal ── */}
+      <Modal
+        visible={showBankModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowBankModal(false)}
+      >
+        <SafeAreaView style={styles.bankModalContainer} edges={['top', 'left', 'right', 'bottom']}>
+          <View style={styles.bankModalHeader}>
+            <Text style={styles.bankModalHeaderTitle}>Bank Balances</Text>
+            <TouchableOpacity
+              style={styles.bankModalCloseBtn}
+              onPress={() => setShowBankModal(false)}
+              activeOpacity={0.7}
+            >
+              <Icon name="close" size={20} color={colors.gray600} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.bankModalList} contentContainerStyle={styles.bankModalListContent}>
+            <View style={styles.bankTotalCard}>
+              <Text style={styles.bankTotalLabel}>Total Bank Balance</Text>
+              <Text style={styles.bankTotalAmount}>{formatBalance(totalBankBalance, data?.currency)}</Text>
+            </View>
+
+            {isBanksLoading ? (
+              <View style={styles.bankModalStateBox}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : bankAccounts.length === 0 ? (
+              <View style={styles.bankModalStateBox}>
+                <Icon name="account-balance" size={28} color={colors.gray300} />
+                <Text style={styles.bankModalStateText}>No bank accounts found</Text>
+              </View>
+            ) : (
+              bankAccounts.map((bank, index) => (
+                <React.Fragment key={bank.id}>
+                  {index > 0 && <View style={styles.bankSeparator} />}
+                  <TouchableOpacity
+                    style={styles.bankListItem}
+                    onPress={() => handleBankPress(bank)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.bankIconCircleLg}>
+                      <Icon name="account-balance" size={20} color={colors.warningDark} />
+                    </View>
+                    <View style={styles.bankListItemInfo}>
+                      <Text style={styles.bankListItemName} numberOfLines={1}>{bank.name}</Text>
+                      <Text style={styles.bankListItemAccount}>{bank.code}</Text>
+                    </View>
+                    <Text style={styles.bankListItemAmount}>{formatBalance(bank.balance, data?.currency)}</Text>
+                    <Icon name="chevron-right" size={20} color={colors.gray400} />
+                  </TouchableOpacity>
+                </React.Fragment>
+              ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
 
       <BottomNavigation activeRoute="Home" />
@@ -557,12 +660,105 @@ const styles = StyleSheet.create({
     color: colors.textSecondary, 
     marginBottom: 8 
   },
-  salesAmount: { 
-    fontSize: 32, 
-    fontWeight: '800', 
-    color: colors.gray900, 
-    letterSpacing: -1 
+  salesAmount: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.gray900,
+    letterSpacing: -1
   },
+
+  cashDivider: {
+    height: 1,
+    backgroundColor: colors.gray200,
+    marginVertical: 14,
+  },
+  bankBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bankBalanceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bankIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.warningLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bankBalanceLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  bankBalanceRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  bankBalanceAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.gray900,
+  },
+
+  // Bank Balances Modal
+  bankModalContainer: { flex: 1, backgroundColor: colors.white },
+  bankModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
+  },
+  bankModalHeaderTitle: { fontSize: 17, fontWeight: '700', color: colors.gray900 },
+  bankModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bankModalList: { flex: 1, paddingHorizontal: 16 },
+  bankModalListContent: { paddingBottom: 24 },
+  bankModalStateBox: { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },
+  bankModalStateText: { fontSize: 13, color: colors.gray400 },
+  bankTotalCard: {
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: colors.warningLight,
+    alignItems: 'center',
+  },
+  bankTotalLabel: { fontSize: 13, fontWeight: '600', color: colors.warningDark, marginBottom: 4 },
+  bankTotalAmount: { fontSize: 24, fontWeight: '800', color: colors.gray900, letterSpacing: -0.5 },
+  bankSeparator: { height: 1, backgroundColor: colors.gray200 },
+  bankListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+  },
+  bankIconCircleLg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.warningLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bankListItemInfo: { flex: 1 },
+  bankListItemName: { fontSize: 15, fontWeight: '700', color: colors.gray900 },
+  bankListItemAccount: { fontSize: 12.5, color: colors.textSecondary, marginTop: 2 },
+  bankListItemAmount: { fontSize: 15, fontWeight: '700', color: colors.gray900 },
 
   // Quick Actions
   sectionHeader: { 

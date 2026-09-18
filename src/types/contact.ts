@@ -140,3 +140,10 @@ export interface ContactCity {
   id?: string;
   number: string;
 }
+
+export interface ChequeSummaryItem {
+  amount: number | string;
+  label: string;
+  transactions: number | null;
+  cheque_status?: string;
+}
